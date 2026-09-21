@@ -1,0 +1,17 @@
+# Environnement virtuel et caches Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Fichiers créés par "pip install -e ."
+*.egg-info/
+build/
+
+# Fichiers temporaires d'Excel
+~$*.xlsx
+
+# Résultats bruts volumineux (les figures et CSV finaux restent versionnés)
+results/raw/
