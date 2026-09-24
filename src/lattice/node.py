@@ -1,5 +1,6 @@
 import datetime
 
+
 class Node:
     # The use of __slots__ is important to not break the RAM
     __slots__ = ['price', 'tree', 'up', 'down', 'next_up', 'next_mid', 'next_down', 
@@ -23,7 +24,7 @@ class Node:
         
         # Pruning et pricing
         self.proba_reach = 0.0
-        self.option_value = 0.0
+        self.option_value = None
 
     def get_or_create_up(self):
         """
@@ -63,8 +64,10 @@ class Node:
 
     def find_closest(self, target: float):
         """
-        Finds the closest node to the target forward price. Moves up or down the column by creating nodes if necessary.
+        Finds the closest node to the target forward price. 
+        Moves up or down the column by creating nodes if necessary.
         """
+        assert target > 0, "forward negatif : ce noeud doit etre elague"
         current = self
         alpha = self.tree.alpha
         
@@ -88,7 +91,10 @@ class Node:
         s_mid = self.next_mid.price
         
         # Stable form formula for p_down
-        numerator = (var + (fwd + s_mid) * (fwd - s_mid)) / (s_mid ** 2) - (alpha + 1.0) * (fwd / s_mid - 1.0)
+        numerator = (
+            (var + (fwd + s_mid) * (fwd - s_mid)) / (s_mid ** 2)
+            - (alpha + 1.0) * (fwd / s_mid - 1.0)
+        )
         denominator = (1.0 - alpha) * (alpha ** -2 - 1.0)
         self.p_down = numerator / denominator
         
@@ -103,13 +109,13 @@ class TrunkNode(Node):
     # We add only attributes for TrunkNode
     __slots__ = ['prec_mid', 'column_date', 'is_div_in_next_period']
 
-    def __init__(self, price: float, tree, prec_mid=None, column_date: datetime.date=None):
+    def __init__(self, price: float, tree, prec_mid=None, column_date: datetime.datetime=None):
         super().__init__(price, tree)
         self.prec_mid = prec_mid
         self.column_date = column_date
         self.is_div_in_next_period = False
 
-    def next_date(self) -> datetime.date:
+    def next_date(self) -> datetime.datetime:
         """
         Returns the exact date of the next column.
         """
@@ -117,9 +123,10 @@ class TrunkNode(Node):
             return self.column_date + self.tree.step_timedelta
         return None
 
-    def are_same_dates(self, d1: datetime.date, d2: datetime.date) -> bool:
+    def are_same_dates(self, d1: datetime.datetime, d2: datetime.datetime) -> bool:
         """
-        Returns True if the two dates are closer than a small fraction of time with Tolerance: < 1 day / N / 1000.
+        Returns True if the two dates are closer than a small fraction of time
+        with Tolerance: < 1 day / N / 1000.
 
         """
         if d1 is None or d2 is None:
