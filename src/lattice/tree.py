@@ -94,3 +94,17 @@ class Tree:
             previous, node = node, node.down
 
         return new_trunk
+
+    
+class BinomialTree(Tree):
+    def __init__(self, market, pricing_date, maturity, nb_steps, prune_threshold=1e-7):
+        super().__init__(market, pricing_date, maturity, nb_steps, prune_threshold)
+
+        # binomial alpha: alpha + 1/alpha = 1 + exp(vol^2 dt)
+        a = (1.0 + math.exp(market.vol**2 * self.dt)) / 2.0
+        self.alpha = a + math.sqrt(a * a - 1.0)
+
+        # two successors only, so no middle probability
+        self.p_up = 1.0 / (self.alpha + 1.0)
+        self.p_mid = 0.0
+        self.p_down = 1.0 - self.p_up
