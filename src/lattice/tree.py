@@ -20,6 +20,16 @@ class Tree:
         self.growth = math.exp(market.rate * self.dt)
         self.var_factor = math.exp(2*market.rate*self.dt) * (math.exp(market.vol**2 *self.dt) -1)
 
+        # without dividend, every node has the same probabilities: computed once here
+        # (more precise than the general formula when fwd ~ s_mid, and faster)
+        alpha = self.alpha
+        self.p_down = (math.exp(market.vol**2 * self.dt) - 1) / ((1 - alpha) * (alpha**-2 - 1))
+        self.p_up = self.p_down / alpha
+        self.p_mid = 1.0 - self.p_up - self.p_down
+
+        # nodes pruned because their probabilities could not be matched
+        self.nb_invalid_nodes = 0
+
         self.root = TrunkNode(market.s0, self, None, pricing_date)
         self.root.proba_reach = 1.0
 
@@ -37,8 +47,13 @@ class Tree:
         var = (s - (t_to_end / self.dt) * market.dividend)**2 * self.var_factor
         return fwd, var
 
-    def link_successors(self, node, fwd, var):
-        node.compute_probabilities(fwd, var)
+    def link_successors(self, node, fwd, var, trunk):
+        if not trunk.is_div_in_next_period:
+            node.set_constant_probabilities()
+        elif fwd <= 0.0:
+            node.prune_invalid()
+        else:
+            node.compute_probabilities(fwd, var)
         node.next_up = node.next_mid.get_or_create_up()
         node.next_down = node.next_mid.get_or_create_down()
 
@@ -55,22 +70,27 @@ class Tree:
         fwd, var = self.forward_and_variance(trunk.price, trunk)
         new_trunk = TrunkNode(fwd, self, trunk, trunk.next_date())
         trunk.next_mid = new_trunk
-        self.link_successors(trunk, fwd, var)
+        self.link_successors(trunk, fwd, var, trunk)
 
         # We go up the column, node by node
         previous, node = trunk, trunk.up
         while node is not None:
             fwd, var = self.forward_and_variance(node.price, trunk)
             node.next_mid = previous.next_mid.find_closest(fwd)
-            self.link_successors(node, fwd, var)
+            self.link_successors(node, fwd, var, trunk)
             previous, node = node, node.up
 
         # We go down the column, node by node
         previous, node = trunk, trunk.down
         while node is not None:
             fwd, var = self.forward_and_variance(node.price, trunk)
-            node.next_mid = previous.next_mid.find_closest(fwd)
-            self.link_successors(node, fwd, var)
+            # a large dividend can give a forward <= 0 at the bottom: no closest node,
+            # the node keeps its neighbour's mid and is pruned in link_successors
+            if fwd > 0.0:
+                node.next_mid = previous.next_mid.find_closest(fwd)
+            else:
+                node.next_mid = previous.next_mid
+            self.link_successors(node, fwd, var, trunk)
             previous, node = node, node.down
 
         return new_trunk

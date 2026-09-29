@@ -1,5 +1,8 @@
 import datetime
 
+# Tolerance on probabilities outside [0, 1], to absorb rounding errors
+PROBA_TOLERANCE = 1e-12
+
 
 class Node:
     # The use of __slots__ is important to not break the RAM
@@ -104,6 +107,49 @@ class Node:
         # The sum of probabilities must be exactly 1
         self.p_mid = 1.0 - self.p_up - self.p_down
 
+        if not self.has_valid_probabilities():
+            self.prune_invalid()
+
+    def set_constant_probabilities(self):
+        """
+        Copies the probabilities computed once in the tree.
+        Valid when there is no dividend in the period: next_mid is then aligned
+        on the forward, and the probabilities are the same for every node.
+        """
+        self.p_up = self.tree.p_up
+        self.p_mid = self.tree.p_mid
+        self.p_down = self.tree.p_down
+
+    def has_valid_probabilities(self) -> bool:
+        """
+        Returns True if the three probabilities are in [0, 1],
+        up to a small rounding tolerance.
+        """
+        low, high = -PROBA_TOLERANCE, 1.0 + PROBA_TOLERANCE
+        return (low <= self.p_up <= high
+                and low <= self.p_mid <= high
+                and low <= self.p_down <= high)
+
+    def prune_invalid(self):
+        """
+        Handles a node whose moments cannot be matched (probability outside [0, 1]
+        or forward <= 0: large dividend at the very bottom of the tree).
+        If the node is practically unreachable, it goes to next_mid with
+        probability 1 and is counted in tree.nb_invalid_nodes; otherwise the
+        tree cannot price this case and a ValueError is raised.
+        """
+        if self.proba_reach >= self.tree.prune_threshold:
+            raise ValueError(
+                f"probabilites hors de [0, 1] (p_up = {self.p_up:.4%}, "
+                f"p_mid = {self.p_mid:.4%}, p_down = {self.p_down:.4%}) "
+                f"sur un noeud atteignable (prix {self.price:.6f}, "
+                f"proba d'atteinte {self.proba_reach:.2e})"
+            )
+        self.p_up = 0.0
+        self.p_mid = 1.0
+        self.p_down = 0.0
+        self.tree.nb_invalid_nodes += 1
+
 
 class TrunkNode(Node):
     # We add only attributes for TrunkNode
@@ -113,7 +159,16 @@ class TrunkNode(Node):
         super().__init__(price, tree)
         self.prec_mid = prec_mid
         self.column_date = column_date
-        self.is_div_in_next_period = False
+        # True if column_date < div_ex_date <= next_date, with a tolerance on dates
+        ex_date = tree.market.div_ex_date
+        next_date = self.next_date()
+        self.is_div_in_next_period = (
+            ex_date is not None
+            and column_date is not None
+            and not self.are_same_dates(column_date, ex_date)
+            and column_date < ex_date
+            and (ex_date < next_date or self.are_same_dates(ex_date, next_date))
+        )
 
     def next_date(self) -> datetime.datetime:
         """
