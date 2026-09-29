@@ -8,15 +8,20 @@ from lattice.greeks import OneDimDerivative
 S0, STRIKE, MATURITY, RATE, VOL = 100.0, 100.0, 1.0, 0.05, 0.20
 
 
+# a function we know by heart: derivative 2x, second derivative 2.
+# param is useless here but the class always calls f(param, x)
 def square(param, x):
     return x * x
 
 
+# Black-Scholes wrapped to get the f(param, x) signature. s comes first
+# because it is the only thing we differentiate against
 def bs_call(param, s):
     strike, maturity, rate, vol = param
     return bs_price(s, strike, maturity, rate, vol, is_call=True)
 
 
+# needed twice (delta and gamma), so we write it once
 def bs_d1():
     return (math.log(S0 / STRIKE) + (RATE + VOL**2 / 2) * MATURITY) / (VOL * math.sqrt(MATURITY))
 
@@ -37,14 +42,18 @@ def test_second_derivative_on_a_known_function():
 def test_derivatives_are_exact_on_a_straight_line(shift):
     d = OneDimDerivative(lambda param, x: 3.0 * x + 7.0, None, shift=shift)
     assert d.first(10.0) == pytest.approx(3.0)
+    # abs is needed here, approx(0.0) alone uses a relative tolerance
     assert d.second(10.0) == pytest.approx(0.0, abs=1e-9)
 
 
+# the delta of a call is exactly N(d1), so we compare our numerical
+# derivative to the closed formula
 def test_delta_matches_black_scholes():
     d = OneDimDerivative(bs_call, (STRIKE, MATURITY, RATE, VOL), shift=0.5)
     assert d.first(S0) == pytest.approx(norm_cdf(bs_d1()), abs=1e-4)
 
 
+# same idea for the gamma: density(d1) / (S * vol * sqrt(T))
 def test_gamma_matches_black_scholes():
     d = OneDimDerivative(bs_call, (STRIKE, MATURITY, RATE, VOL), shift=0.5)
     d1 = bs_d1()
