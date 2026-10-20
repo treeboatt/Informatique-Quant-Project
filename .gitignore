@@ -15,3 +15,6 @@ build/
 
 # Résultats bruts volumineux (les figures et CSV finaux restent versionnés)
 results/raw/
+
+# Brouillon personnel, pas dans le rendu
+analysis/essai.py
