@@ -313,9 +313,12 @@ Pricer(petit, option).price_backward()
 st.pyplot(plot_tree(petit, f"Arbre {kind} - {nb_dessine} pas", dark=True, option=option))
 
 if is_american:
-    st.caption("En rouge, les noeuds ou il vaut mieux exercer tout de suite ; en vert, "
-               "ceux ou il vaut mieux garder l'option. La separation entre les deux, "
-               "c'est la frontiere d'exercice.")
+    st.caption("En rouge, les noeuds ou il vaut mieux exercer par anticipation ; en vert, "
+               "ceux ou il vaut mieux garder. La separation entre les deux, c'est la "
+               "frontiere d'exercice. La derniere colonne n'est pas coloriee : a maturite "
+               "on exerce forcement si on est dans la monnaie. Aucun noeud rouge veut dire "
+               "qu'il ne faut jamais exercer avant l'echeance, ce qui est le cas d'un call "
+               "sans dividende : la prime americaine vaut alors exactement zero.")
 else:
     st.caption("La taille d'un noeud suit sa probabilite d'etre atteint. Dans le binomial, "
                "un noeud sur deux n'est jamais atteint car p_mid vaut 0. Avec le pruning, "

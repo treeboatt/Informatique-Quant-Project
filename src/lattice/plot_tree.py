@@ -5,11 +5,16 @@ from lattice.pricer import column
 
 def is_exercised(node, option):
     """
-    Vrai si a ce noeud il vaut mieux exercer que garder. On le repere sans rien
-    stocker en plus : le pricer a pris le maximum entre garder et exercer, donc
-    si la valeur du noeud est exactement le payoff, c'est qu'on a exerce.
+    Vrai si a ce noeud il vaut mieux exercer PAR ANTICIPATION que garder.
+
+    On le repere sans rien stocker en plus : le pricer a pris le maximum entre
+    garder et exercer, donc si la valeur du noeud est exactement le payoff,
+    c'est qu'on a exerce.
+
+    La derniere colonne est exclue : a maturite on exerce forcement si on est
+    dans la monnaie, ce n'est pas de l'exercice anticipe.
     """
-    if node.option_value is None:
+    if node.option_value is None or node.next_mid is None:
         return False
     paye = option.payoff(node.price)
     return paye > 0.0 and abs(node.option_value - paye) < 1e-12
