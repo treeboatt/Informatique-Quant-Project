@@ -15,6 +15,26 @@ from lattice.tree import BinomialTree, Tree
 
 st.set_page_config(page_title="Pricer d'options", layout="wide")
 
+# police monospace partout (les chiffres s'alignent) et une barre verte
+# devant chaque titre de section
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono&display=swap');
+
+html, body, .stApp, [class*="st-"] { font-family: 'DM Mono', monospace; }
+
+/* sauf les icones de streamlit, qui ont besoin de leur propre police */
+[data-testid="stIconMaterial"] { font-family: 'Material Symbols Rounded' !important; }
+
+h2, h3 {
+    border-left: 3px solid #00E5A0;
+    padding-left: 12px;
+    text-transform: uppercase;
+    font-size: 1.1rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Pricing d'options par arbre")
 st.caption("Projet Informatique financiere - M2 272 Dauphine")
 
@@ -203,7 +223,7 @@ st.caption("Un arbre a plusieurs centaines de pas est illisible, on en redessine
 nb_dessine = st.slider("Pas a dessiner", 3, 25, 8)
 petit = classe_arbre(market, pricing_date, maturity, nb_dessine, prune=pruning)
 petit.build_tree()
-st.pyplot(plot_tree(petit, f"Arbre {kind} - {nb_dessine} pas"))
+st.pyplot(plot_tree(petit, f"Arbre {kind} - {nb_dessine} pas", dark=True))
 st.caption("La taille d'un noeud suit sa probabilite d'etre atteint. Dans le binomial, "
            "un noeud sur deux n'est jamais atteint car p_mid vaut 0. Avec le pruning, "
            "les noeuds trop improbables ne sont plus crees du tout.")
