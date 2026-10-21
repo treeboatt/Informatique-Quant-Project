@@ -1,6 +1,7 @@
 import datetime
 import random
 import time
+import tracemalloc
 
 import matplotlib.pyplot as plt
 import streamlit as st
@@ -12,7 +13,7 @@ from lattice.market import Market, year_fraction
 from lattice.option import OptionTrade
 from lattice.plot_tree import plot_tree
 from lattice.precision import expected_gap, steps_for_precision
-from lattice.pricer import Pricer
+from lattice.pricer import Pricer, column
 from lattice.tree import BinomialTree, Tree
 
 # les couleurs de l'application, au meme endroit pour ne pas les repeter partout
@@ -321,9 +322,36 @@ def graphe(x, courbes, ylabel, zero=False):
 
 # ============================================================== le pricing
 
-depart = time.perf_counter()
-tree_price = prix_arbre()
-temps_arbre = time.perf_counter() - depart
+def mesure_arbre():
+    """
+    Construit et price l'arbre deux fois : une fois chronometre, une fois sous
+    tracemalloc. On ne peut pas faire les deux d'un coup, tracemalloc multiplie
+    le temps par 3 a 4 et le chrono ne voudrait plus rien dire.
+    """
+    depart = time.perf_counter()
+    arbre = classe_arbre(market, pricing_date, maturity, nb_steps, prune=pruning)
+    arbre.build_tree()
+    prix = Pricer(arbre, option).price_backward()
+    duree = time.perf_counter() - depart
+
+    tracemalloc.start()
+    bis = classe_arbre(market, pricing_date, maturity, nb_steps, prune=pruning)
+    bis.build_tree()
+    Pricer(bis, option).price_backward()
+    memoire = tracemalloc.get_traced_memory()[1] / (1024 * 1024)
+    tracemalloc.stop()
+
+    # on compte les noeuds en marchant sur les pointeurs, sans liste
+    noeuds = 0
+    trunk = arbre.root
+    while trunk is not None:
+        noeuds += sum(1 for _ in column(trunk))
+        trunk = trunk.next_mid
+
+    return prix, duree, memoire, noeuds
+
+
+tree_price, temps_arbre, memoire_arbre, nb_noeuds = mesure_arbre()
 
 black_price = bs_price(s0, strike, years, rate, vol, is_call) if comparable else None
 
@@ -398,17 +426,23 @@ if greeks_wanted:
 
 st.subheader("Prix")
 
-cases = st.columns(4, gap="medium")
+cases = st.columns(3, gap="medium")
 cases[0].metric("Arbre", f"{tree_price:.4f}")
 cases[1].metric("Black-Scholes", f"{black_price:.4f}" if comparable else "-")
 cases[2].metric("Ecart", f"{tree_price - black_price:+.4f}" if comparable else "-")
-cases[3].metric("Temps de calcul", f"{temps_arbre * 1000:.0f} ms")
+
+couts = st.columns(3, gap="medium")
+couts[0].metric("Temps de calcul", f"{temps_arbre * 1000:.0f} ms")
+couts[1].metric("Memoire", f"{memoire_arbre:.1f} Mo")
+couts[2].metric("Noeuds construits", f"{nb_noeuds:,}".replace(",", " "))
 
 st.caption(
     f"{'Call' if is_call else 'Put'} {'americain' if is_american else 'europeen'} "
     f"@ {strike:.0f}, {nb_steps} pas, arbre {kind}, pruning "
     f"{'actif' if pruning else 'inactif'} "
-    f"(r={rate:.2%}, vol={vol:.2%}, div={dividend:.2f} EUR, T={years:.4f} an)"
+    f"(r={rate:.2%}, vol={vol:.2%}, div={dividend:.2f} EUR, T={years:.4f} an). "
+    f"Le temps et la memoire sont mesures sur deux constructions separees : "
+    f"tracemalloc ralentit d'un facteur 3 a 4, le chrono serait fausse."
 )
 
 if not comparable:
