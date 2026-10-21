@@ -7,6 +7,8 @@ from lattice.api import price
 from lattice.black_scholes import bs_price
 from lattice.market import Market, year_fraction
 from lattice.option import OptionTrade
+from lattice.plot_tree import plot_tree
+from lattice.tree import BinomialTree, Tree
 
 st.title("Pricing d'options par arbre")
 st.caption("Projet Informatique financiere - M2 272 Dauphine")
@@ -68,6 +70,17 @@ if is_american:
     european = OptionTrade(strike, maturity, is_call, False)
     premium = tree_price - price(market, european, pricing_date, nb_steps, kind=kind)
     st.info(f"Prime d'exercice anticipe : {premium:.4f} EUR")
+
+# ---------------------------------------------------------------- dessin
+st.subheader("L'arbre")
+st.caption("Un arbre a 100 pas est illisible, on en redessine un petit avec le meme marche.")
+
+nb_drawn = st.slider("Pas a dessiner", 3, 20, 8)
+small = (BinomialTree if kind == "binomial" else Tree)(market, pricing_date, maturity, nb_drawn)
+small.build_tree()
+st.pyplot(plot_tree(small, f"Arbre {kind} - {nb_drawn} pas"))
+st.caption("La taille d'un noeud suit sa probabilite d'etre atteint. "
+           "Dans le binomial, un noeud sur deux n'est jamais atteint : p_mid vaut 0.")
 
 # ---------------------------------------------------------------- convergence
 st.subheader("Convergence")
