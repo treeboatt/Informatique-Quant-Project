@@ -40,24 +40,43 @@ html, body, .stApp, [class*="st-"] { font-family: 'DM Mono', monospace; }
 
 /* le bandeau du haut */
 .hero {
+    display: flex;
+    align-items: center;
+    gap: 26px;
     border: 1px solid #1E2530;
     border-radius: 14px;
-    padding: 30px 34px;
+    padding: 26px 32px;
     margin-bottom: 2.2rem;
-    background: radial-gradient(900px 320px at 0% 0%, rgba(0,229,160,0.13), transparent 62%),
+    background: radial-gradient(760px 300px at 0% 0%, rgba(0,229,160,0.14), transparent 64%),
                 linear-gradient(180deg, #11161C 0%, #0F1318 100%);
 }
-.hero .badge {
+.hero .equipe {
     color: #00E5A0;
-    font-size: 0.66rem;
-    letter-spacing: 3px;
-    border: 1px solid rgba(0,229,160,0.35);
-    border-radius: 999px;
-    padding: 5px 14px;
+    font-size: 0.64rem;
+    letter-spacing: 4px;
+    display: block;
+    margin-bottom: 6px;
 }
-.hero h1 { font-size: 2.7rem; line-height: 1.12; margin: 20px 0 8px 0; }
+.hero h1 {
+    font-size: 2.3rem;
+    line-height: 1.1;
+    margin: 0 0 8px 0;
+    letter-spacing: -1px;
+}
 .hero h1 .vert { color: #00E5A0; }
-.hero p { color: #8A93A8; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px; }
+.hero .qui {
+    display: block;
+    color: #E8EDF5;
+    font-size: 0.78rem;
+    letter-spacing: 0.5px;
+}
+.hero .quoi {
+    display: block;
+    color: #8A93A8;
+    font-size: 0.68rem;
+    letter-spacing: 2px;
+    margin-top: 5px;
+}
 
 /* les titres de section : la barre verte doit coller au texte, pas le deborder */
 h2, h3 {
@@ -74,11 +93,35 @@ h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
+# le logo : un petit arbre trinomial dessine en SVG, trois branches par noeud
+LOGO = """
+<svg width="66" height="66" viewBox="0 0 48 48" fill="none">
+  <path d="M7 24 L23 11 M7 24 L23 24 M7 24 L23 37" stroke="#00E5A0"
+        stroke-width="1.4" opacity="0.55"/>
+  <path d="M23 11 L41 6 M23 11 L41 15 M23 24 L41 15 M23 24 L41 24
+           M23 24 L41 33 M23 37 L41 33 M23 37 L41 42" stroke="#00E5A0"
+        stroke-width="1" opacity="0.28"/>
+  <circle cx="7" cy="24" r="4.2" fill="#00E5A0"/>
+  <circle cx="23" cy="11" r="2.4" fill="#00E5A0" opacity="0.85"/>
+  <circle cx="23" cy="24" r="3.2" fill="#00E5A0"/>
+  <circle cx="23" cy="37" r="2.4" fill="#00E5A0" opacity="0.85"/>
+  <circle cx="41" cy="6" r="1.5" fill="#00E5A0" opacity="0.5"/>
+  <circle cx="41" cy="15" r="2" fill="#00E5A0" opacity="0.65"/>
+  <circle cx="41" cy="24" r="2.4" fill="#00E5A0" opacity="0.75"/>
+  <circle cx="41" cy="33" r="2" fill="#00E5A0" opacity="0.65"/>
+  <circle cx="41" cy="42" r="1.5" fill="#00E5A0" opacity="0.5"/>
+</svg>
+"""
+
+st.markdown(f"""
 <div class="hero">
-  <span class="badge">TRINOMIAL &nbsp;·&nbsp; BINOMIAL &nbsp;·&nbsp; BLACK-SCHOLES</span>
-  <h1>Pricing d'options <span class="vert">par arbre</span></h1>
-  <p>Projet Informatique financiere &mdash; M2 272 Dauphine</p>
+  {LOGO}
+  <div>
+    <span class="equipe">TRINOME</span>
+    <h1>Lattice <span class="vert">Pricer</span></h1>
+    <span class="qui">Maxime Gruez &nbsp;·&nbsp; Guillaume Turlan</span>
+    <span class="quoi">M2 272 DAUPHINE &nbsp;·&nbsp; INFORMATIQUE FINANCIERE</span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
