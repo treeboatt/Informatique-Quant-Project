@@ -1,4 +1,5 @@
 import datetime
+import random
 import time
 
 import matplotlib.pyplot as plt
@@ -49,33 +50,40 @@ html, body, .stApp, [class*="st-"] { font-family: 'DM Mono', monospace; }
     border-radius: 14px;
     padding: 30px 34px;
     margin-bottom: 2.2rem;
-    /* une trame de grille, comme du papier millimetre : c'est la grille de
-       l'arbre en filigrane. par dessus, un fond sombre en diagonale */
-    background:
-        repeating-linear-gradient(90deg, rgba(232,237,245,0.028) 0 1px, transparent 1px 44px),
-        repeating-linear-gradient(0deg, rgba(232,237,245,0.028) 0 1px, transparent 1px 44px),
-        linear-gradient(118deg, #121920 0%, #0D1217 52%, #090C10 100%);
+    background: #090C10;
+}
+
+/* le graphique en bougies, en fond */
+.hero .bougies {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* un voile sombre de gauche a droite, pour que le texte reste lisible
+   par dessus les bougies */
+.hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, #090C10 0%, #090C10 40%,
+                                rgba(9,12,16,0.82) 56%, rgba(9,12,16,0.30) 80%,
+                                rgba(9,12,16,0.10) 100%);
+    pointer-events: none;
 }
 
 /* un filet d'accent en haut, qui s'eteint vers la droite */
-.hero::before {
+.hero::after {
     content: "";
     position: absolute;
     top: 0; left: 0; right: 0; height: 2px;
     background: linear-gradient(90deg, #00E5A0 0%, rgba(0,229,160,0.25) 38%, transparent 72%);
-}
-
-/* une lueur tres discrete derriere le logo, pour l'asseoir */
-.hero::after {
-    content: "";
-    position: absolute;
-    left: -60px; top: -60px; width: 260px; height: 260px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(0,229,160,0.10), transparent 68%);
     pointer-events: none;
 }
 
-.hero > * { position: relative; z-index: 1; }
+.hero > div { position: relative; z-index: 2; }
+.hero > svg:not(.bougies) { position: relative; z-index: 2; }
 .hero .equipe {
     color: #00E5A0;
     font-size: 0.64rem;
@@ -119,6 +127,59 @@ h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
+def fond_bougies(largeur=1200, hauteur=250, nb=42):
+    """
+    Un petit graphique en bougies dessine en SVG, pour le fond du bandeau.
+    La graine est fixee, donc le dessin est toujours le meme.
+    """
+    random.seed(5)
+    pas = largeur / nb
+    cours = hauteur * 0.92          # on part en bas pour avoir une vraie montee
+    dessin = []
+
+    # la grille de fond
+    for i in range(1, 9):
+        y = hauteur * i / 9
+        dessin.append(f'<line x1="0" y1="{y:.0f}" x2="{largeur}" y2="{y:.0f}" '
+                      f'stroke="#E8EDF5" stroke-width="0.5" opacity="0.05"/>')
+    for i in range(1, 13):
+        x = largeur * i / 13
+        dessin.append(f'<line x1="{x:.0f}" y1="0" x2="{x:.0f}" y2="{hauteur}" '
+                      f'stroke="#E8EDF5" stroke-width="0.5" opacity="0.05"/>')
+
+    for i in range(nb):
+        ouverture = cours
+        # en SVG l'axe y descend, donc monter veut dire retirer des pixels.
+        # la hausse s'accelere vers la droite : a gauche les bougies restent
+        # basses et ne genent pas le titre
+        cours -= random.uniform(-2.0, 2.0 + 15.0 * (i / nb))
+        x = i * pas + pas / 2
+        monte = cours < ouverture
+        couleur = "#00E5A0" if monte else "#FF4D6A"
+        # les bougies s'eclaircissent vers la droite, la ou est le prix
+        opacite = 0.14 + 0.70 * (i / nb)
+        haut = min(ouverture, cours) - random.uniform(3, 11)
+        bas = max(ouverture, cours) + random.uniform(3, 11)
+        corps = max(abs(cours - ouverture), 3.5)
+
+        dessin.append(f'<line x1="{x:.1f}" y1="{haut:.1f}" x2="{x:.1f}" y2="{bas:.1f}" '
+                      f'stroke="{couleur}" stroke-width="1.1" opacity="{opacite:.2f}"/>')
+        dessin.append(f'<rect x="{x - pas * 0.3:.1f}" y="{min(ouverture, cours):.1f}" '
+                      f'width="{pas * 0.6:.1f}" height="{corps:.1f}" rx="1" '
+                      f'fill="{couleur}" opacity="{opacite:.2f}"/>')
+
+    # la derniere bougie brille, c'est le point d'arrivee
+    dessin.append(f'<circle cx="{largeur - pas / 2:.1f}" cy="{cours:.1f}" r="16" '
+                  f'fill="#00E5A0" opacity="0.18" filter="url(#flou)"/>')
+    dessin.append(f'<circle cx="{largeur - pas / 2:.1f}" cy="{cours:.1f}" r="3.5" '
+                  f'fill="#E8EDF5"/>')
+
+    return (f'<svg class="bougies" viewBox="0 0 {largeur} {hauteur}" '
+            f'preserveAspectRatio="none">'
+            f'<defs><filter id="flou"><feGaussianBlur stdDeviation="7"/></filter></defs>'
+            f'{"".join(dessin)}</svg>')
+
+
 # le logo : un petit arbre trinomial dessine en SVG, trois branches par noeud
 LOGO = """
 <svg width="66" height="66" viewBox="0 0 48 48" fill="none">
@@ -141,6 +202,7 @@ LOGO = """
 
 st.markdown(f"""
 <div class="hero">
+  {fond_bougies()}
   {LOGO}
   <div>
     <span class="equipe">TRINOME</span>
