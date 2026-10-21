@@ -40,16 +40,42 @@ html, body, .stApp, [class*="st-"] { font-family: 'DM Mono', monospace; }
 
 /* le bandeau du haut */
 .hero {
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
-    gap: 26px;
+    gap: 28px;
     border: 1px solid #1E2530;
     border-radius: 14px;
-    padding: 26px 32px;
+    padding: 30px 34px;
     margin-bottom: 2.2rem;
-    background: radial-gradient(760px 300px at 0% 0%, rgba(0,229,160,0.14), transparent 64%),
-                linear-gradient(180deg, #11161C 0%, #0F1318 100%);
+    /* une trame de grille, comme du papier millimetre : c'est la grille de
+       l'arbre en filigrane. par dessus, un fond sombre en diagonale */
+    background:
+        repeating-linear-gradient(90deg, rgba(232,237,245,0.028) 0 1px, transparent 1px 44px),
+        repeating-linear-gradient(0deg, rgba(232,237,245,0.028) 0 1px, transparent 1px 44px),
+        linear-gradient(118deg, #121920 0%, #0D1217 52%, #090C10 100%);
 }
+
+/* un filet d'accent en haut, qui s'eteint vers la droite */
+.hero::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #00E5A0 0%, rgba(0,229,160,0.25) 38%, transparent 72%);
+}
+
+/* une lueur tres discrete derriere le logo, pour l'asseoir */
+.hero::after {
+    content: "";
+    position: absolute;
+    left: -60px; top: -60px; width: 260px; height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,229,160,0.10), transparent 68%);
+    pointer-events: none;
+}
+
+.hero > * { position: relative; z-index: 1; }
 .hero .equipe {
     color: #00E5A0;
     font-size: 0.64rem;
