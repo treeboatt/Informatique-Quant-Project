@@ -1,7 +1,7 @@
 import datetime
 import time
 
-import pandas as pd
+import matplotlib.pyplot as plt
 import streamlit as st
 
 from lattice.api import price
@@ -11,13 +11,19 @@ from lattice.market import Market, year_fraction
 from lattice.option import OptionTrade
 from lattice.plot_tree import plot_tree
 from lattice.precision import expected_gap, steps_for_precision
+from lattice.pricer import Pricer
 from lattice.tree import BinomialTree, Tree
+
+# les couleurs de l'application, au meme endroit pour ne pas les repeter partout
+FOND = "#0F1318"
+ENCRE = "#E8EDF5"
+VERT = "#00E5A0"
+GRIS = "#1E2530"
+ROUGE = "#FF4D6A"
 
 st.set_page_config(page_title="Pricer d'options", layout="wide",
                    initial_sidebar_state="collapsed")
 
-# police monospace partout (les chiffres s'alignent en colonne) et une barre
-# verte devant chaque titre de section
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono&display=swap');
@@ -30,25 +36,51 @@ html, body, .stApp, [class*="st-"] { font-family: 'DM Mono', monospace; }
 /* on n'utilise pas la barre laterale, autant cacher son bouton */
 [data-testid="stSidebarCollapsedControl"] { display: none; }
 
-.block-container { padding-top: 3rem; padding-bottom: 4rem; max-width: 1500px; }
+.block-container { padding-top: 2.5rem; padding-bottom: 5rem; max-width: 1500px; }
 
+/* le bandeau du haut */
+.hero {
+    border: 1px solid #1E2530;
+    border-radius: 14px;
+    padding: 30px 34px;
+    margin-bottom: 2.2rem;
+    background: radial-gradient(900px 320px at 0% 0%, rgba(0,229,160,0.13), transparent 62%),
+                linear-gradient(180deg, #11161C 0%, #0F1318 100%);
+}
+.hero .badge {
+    color: #00E5A0;
+    font-size: 0.66rem;
+    letter-spacing: 3px;
+    border: 1px solid rgba(0,229,160,0.35);
+    border-radius: 999px;
+    padding: 5px 14px;
+}
+.hero h1 { font-size: 2.7rem; line-height: 1.12; margin: 20px 0 8px 0; }
+.hero h1 .vert { color: #00E5A0; }
+.hero p { color: #8A93A8; font-size: 0.82rem; margin: 0; letter-spacing: 0.5px; }
+
+/* les titres de section : la barre verte doit coller au texte, pas le deborder */
 h2, h3 {
     border-left: 3px solid #00E5A0;
-    padding-left: 12px;
+    padding: 0 0 0 14px !important;
+    margin: 0 0 1.1rem 0 !important;
+    line-height: 1.5;
     text-transform: uppercase;
-    font-size: 1rem;
-    letter-spacing: 1px;
-    margin-bottom: 1rem;
+    font-size: 0.95rem;
+    letter-spacing: 1.5px;
 }
 
 [data-testid="stMetricValue"] { color: #00E5A0; }
 </style>
 """, unsafe_allow_html=True)
 
-
-st.title("Pricing d'options par arbre")
-st.caption("Projet Informatique financiere - M2 272 Dauphine")
-st.write("")
+st.markdown("""
+<div class="hero">
+  <span class="badge">TRINOMIAL &nbsp;·&nbsp; BINOMIAL &nbsp;·&nbsp; BLACK-SCHOLES</span>
+  <h1>Pricing d'options <span class="vert">par arbre</span></h1>
+  <p>Projet Informatique financiere &mdash; M2 272 Dauphine</p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # ============================================================== les parametres
@@ -101,13 +133,38 @@ classe_arbre = BinomialTree if kind == "binomial" else Tree
 comparable = (not is_american) and dividend == 0.0
 
 
-# ============================================================== le pricing
+# ============================================================== outils
 
 def prix_arbre(nb=None, quand=None, marche=None, opt=None):
     """Un seul endroit ou on appelle le pricer, ca evite les oublis."""
     return price(marche or market, opt or option, quand or pricing_date,
                  nb or nb_steps, kind=kind, prune=pruning)
 
+
+def graphe(x, courbes, ylabel):
+    """Un petit graphe sombre. Matplotlib cale l'axe sur les valeurs, ce que
+    st.line_chart ne fait pas : il part de zero et ecrase les deux courbes."""
+    fig, ax = plt.subplots(figsize=(6, 3.4))
+    fig.patch.set_facecolor(FOND)
+    ax.set_facecolor(FOND)
+    ax.tick_params(colors=ENCRE, labelsize=8)
+    for cote in ax.spines.values():
+        cote.set_color(GRIS)
+
+    for nom, (valeurs, couleur) in courbes.items():
+        ax.plot(x, valeurs, color=couleur, linewidth=1.6, label=nom)
+
+    ax.set_xlabel("nombre de pas", color=ENCRE, fontsize=9)
+    ax.set_ylabel(ylabel, color=ENCRE, fontsize=9)
+    ax.grid(color=GRIS, linewidth=0.5)
+    legende = ax.legend(fontsize=8, facecolor=FOND, edgecolor=GRIS)
+    for texte in legende.get_texts():
+        texte.set_color(ENCRE)
+    fig.tight_layout()
+    return fig
+
+
+# ============================================================== le pricing
 
 depart = time.perf_counter()
 tree_price = prix_arbre()
@@ -184,17 +241,12 @@ if greeks_wanted:
 
 # ============================================================== le prix
 
-st.write("")
 st.subheader("Prix")
 
 cases = st.columns(4, gap="medium")
 cases[0].metric("Arbre", f"{tree_price:.4f}")
-if comparable:
-    cases[1].metric("Black-Scholes", f"{black_price:.4f}")
-    cases[2].metric("Ecart", f"{tree_price - black_price:+.4f}")
-else:
-    cases[1].metric("Black-Scholes", "-")
-    cases[2].metric("Ecart", "-")
+cases[1].metric("Black-Scholes", f"{black_price:.4f}" if comparable else "-")
+cases[2].metric("Ecart", f"{tree_price - black_price:+.4f}" if comparable else "-")
 cases[3].metric("Temps de calcul", f"{temps_arbre * 1000:.0f} ms")
 
 st.caption(
@@ -211,6 +263,8 @@ if is_american:
     europeenne = OptionTrade(strike, maturity, is_call, False)
     st.success(f"Prime d'exercice anticipe : {tree_price - prix_arbre(opt=europeenne):+.6f} EUR")
 
+st.write("")
+
 
 # ============================================================== grecques et erreur
 
@@ -219,11 +273,13 @@ gauche, droite = st.columns([3, 2], gap="large")
 with gauche:
     st.subheader("Grecques")
     if greeks_wanted:
-        colonnes = ["Black-Scholes", "Arbre"] if comparable else ["Arbre"]
-        tableau = pd.DataFrame(resultats).T.reindex(columns=colonnes)
+        lignes = ["Delta", "Gamma", "Vega (+1% vol)", "Rho (+1% taux)", "Theta (par jour)"]
+        tableau = {"": lignes, "Arbre": [resultats[n]["Arbre"] for n in lignes]}
         if comparable:
-            tableau["Ecart"] = tableau["Arbre"] - tableau["Black-Scholes"]
-        st.dataframe(tableau.style.format("{:.6f}"), use_container_width=True)
+            tableau["Black-Scholes"] = [resultats[n]["Black-Scholes"] for n in lignes]
+            tableau["Ecart"] = [resultats[n]["Arbre"] - resultats[n]["Black-Scholes"]
+                                for n in lignes]
+        st.dataframe(tableau, use_container_width=True, hide_index=True)
         st.caption(f"Decalage de {decalage:.2f} EUR pour l'arbre, soit l'ecart entre deux "
                    f"noeuds voisins : en dessous, les trois prix tombent dans le meme "
                    f"casier et le gamma vaut exactement zero.")
@@ -241,37 +297,52 @@ with droite:
         st.caption("La formule du cours se compare a Black-Scholes : "
                    "europeenne et sans dividende.")
 
+st.write("")
+
 
 # ============================================================== le dessin
 
-st.write("")
 st.subheader("L'arbre")
 
 petit = classe_arbre(market, pricing_date, maturity, nb_dessine, prune=pruning)
 petit.build_tree()
-st.pyplot(plot_tree(petit, f"Arbre {kind} - {nb_dessine} pas", dark=True))
-st.caption("La taille d'un noeud suit sa probabilite d'etre atteint. Dans le binomial, "
-           "un noeud sur deux n'est jamais atteint car p_mid vaut 0. Avec le pruning, "
-           "les noeuds trop improbables ne sont plus crees du tout.")
+# on price le petit arbre pour que chaque noeud connaisse sa valeur : c'est ce
+# qui permet de savoir ou l'exercice anticipe a lieu
+Pricer(petit, option).price_backward()
+
+st.pyplot(plot_tree(petit, f"Arbre {kind} - {nb_dessine} pas", dark=True, option=option))
+
+if is_american:
+    st.caption("En rouge, les noeuds ou il vaut mieux exercer tout de suite ; en vert, "
+               "ceux ou il vaut mieux garder l'option. La separation entre les deux, "
+               "c'est la frontiere d'exercice.")
+else:
+    st.caption("La taille d'un noeud suit sa probabilite d'etre atteint. Dans le binomial, "
+               "un noeud sur deux n'est jamais atteint car p_mid vaut 0. Avec le pruning, "
+               "les noeuds trop improbables ne sont plus crees du tout.")
+
+st.write("")
 
 
 # ============================================================== la convergence
 
-st.write("")
 st.subheader("Convergence")
 
 if comparable:
-    pas = list(range(10, nb_steps + 1, max(1, nb_steps // 20)))
+    pas = list(range(10, nb_steps + 1, max(1, nb_steps // 25)))
     prix = [prix_arbre(nb=n) for n in pas]
 
     courbe, ecart = st.columns(2, gap="large")
     with courbe:
-        st.caption("Prix de l'arbre et prix de Black-Scholes")
-        st.line_chart(pd.DataFrame({"arbre": prix, "Black-Scholes": black_price}, index=pas))
+        st.pyplot(graphe(pas, {"arbre": (prix, VERT),
+                               "Black-Scholes": ([black_price] * len(pas), ROUGE)},
+                         "prix de l'option"))
+        st.caption("Le prix de l'arbre se rapproche de Black-Scholes quand on ajoute des pas.")
     with ecart:
-        st.caption("Ecart x nombre de pas : il se stabilise, c'est la convergence en 1/N. "
-                   "En binomial il oscille selon la parite.")
-        st.line_chart(pd.DataFrame({"ecart x N": [(p - black_price) * n
-                                                  for p, n in zip(prix, pas)]}, index=pas))
+        st.pyplot(graphe(pas, {"ecart x N": ([(p - black_price) * n
+                                              for p, n in zip(prix, pas)], VERT)},
+                         "ecart x nombre de pas"))
+        st.caption("Cette courbe se stabilise : c'est la convergence en 1/N. "
+                   "En binomial elle oscille selon la parite du nombre de pas.")
 else:
     st.caption("La convergence se compare a Black-Scholes : europeenne et sans dividende.")
