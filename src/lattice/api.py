@@ -4,11 +4,12 @@ from lattice.tree import BinomialTree, Tree
 
 # single entry point of the project. the tree is built on the maturity of the
 # option, so the two can never disagree
-def price(market, option, pricing_date, nb_steps, kind="trinomial", method="backward"):
+def price(market, option, pricing_date, nb_steps, kind="trinomial", method="backward",
+          prune=False):
     if kind == "trinomial":
-        tree = Tree(market, pricing_date, option.maturity, nb_steps)
+        tree = Tree(market, pricing_date, option.maturity, nb_steps, prune=prune)
     elif kind == "binomial":
-        tree = BinomialTree(market, pricing_date, option.maturity, nb_steps)
+        tree = BinomialTree(market, pricing_date, option.maturity, nb_steps, prune=prune)
     else:
         raise ValueError(f"unknown kind: {kind}")
 
