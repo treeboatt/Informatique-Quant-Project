@@ -21,6 +21,7 @@ ENCRE = "#E8EDF5"
 VERT = "#00E5A0"
 GRIS = "#1E2530"
 ROUGE = "#FF4D6A"
+BLEU = "#6C8FFF"
 
 st.set_page_config(page_title="Pricer d'options", layout="wide",
                    initial_sidebar_state="collapsed")
@@ -240,6 +241,7 @@ with bloc_modele, st.container(border=True):
     kind = st.selectbox("Type d'arbre", ["trinomial", "binomial"])
     nb_steps = st.slider("Nombre de pas", 10, 500, 100)
     nb_dessine = st.slider("Pas a dessiner", 3, 25, 8)
+    jusqu_a = st.slider("Convergence jusqu'a N", 40, 200, 120)
     pruning = st.checkbox("Pruning", value=True)
     greeks_wanted = st.checkbox("Calculer les grecques", value=True)
 
@@ -272,7 +274,26 @@ def prix_arbre(nb=None, quand=None, marche=None, opt=None):
                  nb or nb_steps, kind=kind, prune=pruning)
 
 
-def graphe(x, courbes, ylabel):
+@st.cache_data(show_spinner="Calcul de la convergence...")
+def etude_tunnel(s0, rate, vol, strike, is_call, pricing_date, maturity, jusqu_a):
+    """
+    Ecart x N pour les deux arbres, a chaque N entier. Il faut tous les N :
+    avec un pas de 2 on raterait l'oscillation du binomial, qui depend de la
+    parite. Ca fait quelques centaines de prix, d'ou la mise en cache.
+    """
+    marche = Market(s0, rate, vol)
+    opt = OptionTrade(strike, maturity, is_call, False)
+    reference = bs_price(s0, strike, year_fraction(pricing_date, maturity), rate, vol, is_call)
+
+    n_pas = list(range(10, jusqu_a + 1))
+    ecarts = {}
+    for sorte in ("trinomial", "binomial"):
+        ecarts[sorte] = [(price(marche, opt, pricing_date, n, kind=sorte, prune=True)
+                          - reference) * n for n in n_pas]
+    return n_pas, ecarts
+
+
+def graphe(x, courbes, ylabel, zero=False):
     """Un petit graphe sombre. Matplotlib cale l'axe sur les valeurs, ce que
     st.line_chart ne fait pas : il part de zero et ecrase les deux courbes."""
     fig, ax = plt.subplots(figsize=(6, 3.4))
@@ -282,8 +303,11 @@ def graphe(x, courbes, ylabel):
     for cote in ax.spines.values():
         cote.set_color(GRIS)
 
+    if zero:
+        ax.axhline(0, color=ENCRE, linewidth=0.8, alpha=0.4)
+
     for nom, (valeurs, couleur) in courbes.items():
-        ax.plot(x, valeurs, color=couleur, linewidth=1.6, label=nom)
+        ax.plot(x, valeurs, color=couleur, linewidth=1.3, label=nom)
 
     ax.set_xlabel("nombre de pas", color=ENCRE, fontsize=9)
     ax.set_ylabel(ylabel, color=ENCRE, fontsize=9)
@@ -466,17 +490,21 @@ if comparable:
     pas = list(range(10, nb_steps + 1, max(1, nb_steps // 25)))
     prix = [prix_arbre(nb=n) for n in pas]
 
-    courbe, ecart = st.columns(2, gap="large")
+    courbe, tunnel = st.columns(2, gap="large")
     with courbe:
         st.pyplot(graphe(pas, {"arbre": (prix, VERT),
                                "Black-Scholes": ([black_price] * len(pas), ROUGE)},
                          "prix de l'option"))
         st.caption("Le prix de l'arbre se rapproche de Black-Scholes quand on ajoute des pas.")
-    with ecart:
-        st.pyplot(graphe(pas, {"ecart x N": ([(p - black_price) * n
-                                              for p, n in zip(prix, pas)], VERT)},
-                         "ecart x nombre de pas"))
-        st.caption("Cette courbe se stabilise : c'est la convergence en 1/N. "
-                   "En binomial elle oscille selon la parite du nombre de pas.")
+
+    with tunnel:
+        n_tunnel, ecarts = etude_tunnel(s0, rate, vol, strike, is_call,
+                                        pricing_date, maturity, jusqu_a)
+        st.pyplot(graphe(n_tunnel, {"trinomial": (ecarts["trinomial"], VERT),
+                                    "binomial": (ecarts["binomial"], BLEU)},
+                         "(arbre - Black) x N", zero=True))
+        st.caption("Multiplier l'ecart par N le rend lisible : il reste borne, donc "
+                   "l'erreur decroit bien en 1/N. Le trinomial se cale sur une valeur, "
+                   "le binomial oscille entre deux selon la parite de N.")
 else:
     st.caption("La convergence se compare a Black-Scholes : europeenne et sans dividende.")
