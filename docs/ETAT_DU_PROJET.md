@@ -77,16 +77,19 @@ Priorité : **P1 = obligatoire dans l'énoncé**, P2 = attendu pour le rapport, 
 
 | # | Tâche | Fichier | Qui | Prio | État / notes de départ |
 |---|---|---|---|---|---|
-| 1 | `price(market, option, pricing_date, nb_steps, kind, method)` | `api.py` | Maxime (B) | P1 | **à faire** — ~10 lignes, point d'entrée unique du projet. C'est lui qui garantit que la maturité de l'arbre et celle de l'option coïncident |
-| 2 | `BinomialTree(Tree)` | `tree.py` | Guillaume (A) | **P1** | **à faire — priorité n°1 restante.** α = (1+e^{σ²Δt})/2 + √( ((1+e^{σ²Δt})/2)² − 1 ), `p_up = 1/(α+1)`. Deux successeurs au lieu de trois. Hérite de `Tree`, ne réécrit que ce qui change |
+| 1 | `price(market, option, pricing_date, nb_steps, kind, method, prune)` | `api.py` | Maxime (B) | P1 | **FAIT (29/09)** — point d'entrée unique. L'arbre est bâti sur `option.maturity`, donc les deux ne peuvent pas diverger |
+| 2 | `BinomialTree(Tree)` | `tree.py` | Guillaume (A) | P1 | **FAIT (29/09)** — 8 lignes : dans cette architecture un binomial est un trinomial avec `p_mid = 0`. Converge **en oscillant avec la parité de N** (−2,76 pair / +3,16 impair) |
 | 3 | Dividende discret | `node.py`, `tree.py` | Guillaume (A) | P1 | **FAIT (29/09)** — `is_div_in_next_period` calculé dans `TrunkNode`, probabilités constantes hors période de dividende, gestion des forwards ≤ 0 en bas de l'arbre. Invariants exacts vérifiés à 1e-13 (§5) |
-| 4 | `price_recursive` + comparaison de perf avec le backward | `pricer.py` | Maxime (B) | P2 | à faire. `_node_value` est déjà factorisée pour être réutilisée sans duplication. Attention à la convention `option_value is None` (§6) |
-| 5 | Pruning et mesure mémoire | `tree.py` | Guillaume (A) | P3 | **partiellement fait** : `prune_threshold` est désormais lu par `prune_invalid` pour les nœuds dont les moments ne peuvent pas être appariés, et `tree.nb_invalid_nodes` les compte. Reste **l'élagage mémoire proprement dit** : ne plus créer les nœuds dont `proba_reach < prune_threshold`, et mesurer le gain |
-| 6 | Greeks (`OneDimDerivative`), études de convergence, graphes | `greeks.py`, `analysis/` | Maxime (B) | P2 | à faire — la matière du rapport |
-| 7 | `plot_tree.py` (arbre, valeurs de l'option, frontière d'exercice) | `plot_tree.py` | Guillaume (A) | P3 | à faire |
-| 8 | `streamlit_app.py` | `streamlit_app.py` | Maxime (B) | P3 | à faire — visuel final, **aucune logique de pricing dedans** |
-| 9 | Rapport ≈ 10 pages | `report/` | les deux | P1 | à faire — ce qui a été fait, résultats marquants, difficultés surmontées, beaux graphes |
-| 10 | Mail au professeur | — | Maxime | P1 | à faire — questions ouvertes au §8 |
+| 4 | `price_recursive` + comparaison de perf avec le backward | `pricer.py` | Maxime (B) | **P2** | **à faire.** `_node_value` est déjà factorisée pour être réutilisée sans duplication. Attention à la convention `option_value is None` (§6) |
+| 5 | Pruning et mesure mémoire | `tree.py` | Guillaume (A) | P3 | **FAIT (20/10)** — un nœud sous `prune_threshold` ne branche plus : ses successeurs haut et bas ne sont jamais créés, et sa probabilité passe à `next_mid`. **Optionnel, désactivé par défaut** (`prune=False`) : activé en permanence il casse les invariants exacts du dividende, dont le biais est de l'ordre du seuil. Mesures au §5 bis |
+| 6 | Greeks (`OneDimDerivative`) | `greeks.py` | Maxime (B) | P2 | **FAIT (29/09)** — delta, véga, rhô fiables ; **gamma instable** par bump, d'où la tâche 11 |
+| 7 | `plot_tree.py` + frontière d'exercice | `plot_tree.py` | Guillaume (A) | P3 | **FAIT (13 et 21/10)** — taille des nœuds ∝ `proba_reach`, et coloriage exercer/garder pour les américaines |
+| 8 | `streamlit_app.py` | `streamlit_app.py` | Maxime (B) | P3 | **FAIT (13 au 21/10)** — prix, grecques contre Black-Scholes, dessin de l'arbre, convergence |
+| 9 | Estimation de l'erreur et N d'une précision cible | `precision.py` | Maxime (B) | P3 | **FAIT (20/10)** — `error_constant`, `expected_gap`, `steps_for_precision` |
+| 10 | **Études de convergence et graphes du rapport** | `analysis/` | Maxime (B) | **P2** | **à faire** — le tunnel, l'écart vs strike, binomial vs trinomial. `analysis/mesure_pruning.py` existe déjà pour la partie mémoire |
+| 11 | **Delta et gamma par nœuds autour de la racine** | `tree.py` | Guillaume (A) | **P2** | **à faire** — la 2ᵉ méthode du prof, qui corrige le gamma instable du bump |
+| 12 | Rapport ≈ 10 pages | `report/` | les deux | **P1** | **à faire** — ce qui a été fait, résultats marquants, difficultés surmontées, beaux graphes |
+| 13 | Mail au professeur | — | Maxime | **P1** | **à faire** — questions ouvertes au §8. Toujours pas envoyé, la date de rendu reste inconnue |
 
 ### Répartition des fichiers (rappel de `interface.md`)
 
@@ -141,11 +144,56 @@ Les deux invariants ci-dessous sont **exacts quel que soit N** : ce sont les mei
 
 **Un arbre peut pricer plusieurs options sans être reconstruit** : à N = 1000, construction ≈ 3 s, puis ≈ 300 ms par prix européen et ≈ 630 ms par prix américain. C'est ce qui rend les études de convergence et le Streamlit utilisables.
 
-### Attendus pas encore vérifiés (cibles des tâches 2 et 5)
+### Binomial contre trinomial *(vérifié)*
 
-- **Binomial** : converge **en oscillant avec la parité de N** (écart × N ≈ −2,76 pour N pair, +3,16 pour N impair), là où le trinomial converge régulièrement. Bonne « finding » pour le rapport.
-- **Égalités américain = européen** : call si r ≥ 0 sans dividende ; put si r ≤ 0 sans dividende.
-- **Pruning mémoire** : à N = 200, **79 %** des nœuds de la dernière colonne ont `proba_reach < 1e-7` ; le plus extrême vaut 5,9e-158 pour un prix de 155 400 €.
+Le binomial converge **en oscillant avec la parité de N**, là où le trinomial converge régulièrement :
+
+| N | binomial (écart × N) | trinomial |
+|---|---|---|
+| 100 **pair** | **−2,756** | −2,966 |
+| 101 **impair** | **+3,162** | −2,966 |
+| 200 pair | −2,757 | −2,962 |
+| 201 impair | +3,160 | −2,962 |
+
+### Exercice anticipé *(vérifié)*
+
+| Cas | Prime américaine | Nœuds d'exercice anticipé |
+|---|---|---|
+| Call, r > 0, **sans dividende** | **+0,000000** | **0** |
+| Put, mêmes paramètres | +0,615213 | 257 |
+| Call **avec dividende de 12 €** | +3,317681 | 20 |
+
+Le call sans dividende ne s'exerce jamais par anticipation : c'est le cas d'égalité de l'énoncé. Un dividende assez gros fait réapparaître l'exercice juste avant le détachement — il faut qu'il dépasse les intérêts perdus sur le strike (seuil entre 1 et 2 € sur notre cas de référence).
+
+---
+
+## 5 bis. Pruning : le gain mesuré
+
+Reproduire avec `python analysis/mesure_pruning.py` (écrit aussi `results/pruning.png`).
+
+**S0 = 100, K = 100, vol 20 %, r = 5 %, T = 1 an, seuil 1e-7 :**
+
+| N | nœuds sans | avec | gain | temps sans | avec | **Mo sans** | **avec** | biais |
+|---|---|---|---|---|---|---|---|---|
+| 100 | 10 201 | 4 235 | 58,5 % | 90 ms | 37 ms | 1,7 | 0,7 | −3,1e-09 |
+| 400 | 160 801 | 32 997 | 79,5 % | 1662 ms | 447 ms | 27,0 | 5,6 | −1,1e-08 |
+| 700 | 491 401 | 75 501 | 84,6 % | 5185 ms | 639 ms | 82,5 | 12,7 | −1,5e-08 |
+| **1000** | **1 002 001** | **127 904** | **87,2 %** | **10 088 ms** | **1187 ms** | **168,2** | **21,5** | **−1,9e-08** |
+
+**À N = 1000 : 8 fois moins de nœuds, 8 fois moins de mémoire, 8 fois plus rapide, pour un biais de 2 centièmes de milliardième d'euro.** Sans pruning la mémoire croît en N², avec pruning quasi linéairement.
+
+### L'arbitrage du seuil (N = 500)
+
+| seuil | nœuds | gain | Mo | biais |
+|---|---|---|---|---|
+| aucun | 251 001 | — | 42,2 | — |
+| 1e-10 | 55 944 | 77,7 % | 9,4 | **−5,9e-12** |
+| 1e-08 | 49 489 | 80,3 % | 8,3 | −9,1e-10 |
+| 1e-07 | 45 906 | 81,7 % | 7,7 | −1,2e-08 |
+| 1e-05 | 37 691 | 85,0 % | 6,4 | −2,7e-06 |
+| 1e-03 | 27 059 | 89,2 % | 4,6 | **−9,5e-04** |
+
+Même au seuil le plus prudent (1e-10) on supprime **77 % des nœuds** pour un biais invisible. Au-delà de 1e-5 le biais devient perceptible. Le point d'équilibre est vers **1e-7 / 1e-8**.
 
 ---
 
@@ -236,3 +284,8 @@ On demande la relecture à l'autre ; s'il n'est pas disponible sous 24 h, on fus
 |---|---|---|
 | 22/09 → 25/09 | `0b18f3f` | PR #1 à #5 : `market`, `option`, `black_scholes`, `interface.md`, `node`, `pricer`, `tree` trinomial. Moteur trinomial complet et validé contre Black-Scholes |
 | 29/09 | `b461e4c` | Guillaume : dividende discret opérationnel (`is_div_in_next_period`), probabilités constantes hors dividende, `prune_invalid` + `nb_invalid_nodes`, 10 tests. Vérifié : aucune régression sur les prix de référence, invariants du dividende exacts à 1e-13 |
+| 29/09 | `58c7c38` | `greeks.py` (`OneDimDerivative`), `BinomialTree`, `api.py`. PR #7 à #9 |
+| 06/10 → 13/10 | `d2d5b97` | tests du dividende (invariants exacts), application Streamlit. PR #10 et #11 |
+| 20/10 → 21/10 | *en PR* | `plot_tree.py` + frontière d'exercice (#12), pruning mémoire + `precision.py` (#13), interface Streamlit complète (#14). **119 tests** |
+
+> ⚠️ **Au 21/10, les PR #12, #13 et #14 sont ouvertes et non fusionnées.** Elles s'empilent : fusionner dans l'ordre **12 → 13 → 14**. Tant que ce n'est pas fait, `main` ne contient ni le pruning, ni le dessin de l'arbre, ni l'application.
