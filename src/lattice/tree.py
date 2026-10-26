@@ -5,10 +5,14 @@ from lattice.node import TrunkNode
 
 
 class Tree:
-    def __init__(self, market, pricing_date, maturity, nb_steps, prune_threshold=1e-7):
+    def __init__(self, market, pricing_date, maturity, nb_steps, prune_threshold=1e-7,
+                 prune=False):
         self.market = market
         self.pricing_date = pricing_date
         self.prune_threshold = prune_threshold
+        # le pruning fait gagner beaucoup de memoire mais introduit un petit
+        # biais, donc on le demande explicitement
+        self.prune = prune
         self.nb_steps = nb_steps
 
         # time period of a step : in calendar days and in fraction of years
@@ -48,6 +52,15 @@ class Tree:
         return fwd, var
 
     def link_successors(self, node, fwd, var, trunk):
+        # pruning : un noeud quasi inatteignable ne branche plus, il suit tout
+        # droit. ses successeurs haut et bas ne sont donc jamais crees
+        if self.prune and node.proba_reach < self.prune_threshold:
+            node.p_up = 0.0
+            node.p_mid = 1.0
+            node.p_down = 0.0
+            node.next_mid.proba_reach += node.proba_reach
+            return
+
         if not trunk.is_div_in_next_period:
             node.set_constant_probabilities()
         elif fwd <= 0.0:
@@ -95,10 +108,11 @@ class Tree:
 
         return new_trunk
 
-    
+
 class BinomialTree(Tree):
-    def __init__(self, market, pricing_date, maturity, nb_steps, prune_threshold=1e-7):
-        super().__init__(market, pricing_date, maturity, nb_steps, prune_threshold)
+    def __init__(self, market, pricing_date, maturity, nb_steps, prune_threshold=1e-7,
+                 prune=False):
+        super().__init__(market, pricing_date, maturity, nb_steps, prune_threshold, prune)
 
         # binomial alpha: alpha + 1/alpha = 1 + exp(vol^2 dt)
         a = (1.0 + math.exp(market.vol**2 * self.dt)) / 2.0
