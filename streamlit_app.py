@@ -8,7 +8,7 @@ import streamlit as st
 
 from lattice.api import price
 from lattice.black_scholes import bs_price
-from lattice.greeks import OneDimDerivative
+from lattice.greeks import OneDimDerivative, TwoDimDerivative
 from lattice.market import Market, year_fraction
 from lattice.option import OptionTrade
 from lattice.plot_tree import plot_tree
@@ -385,8 +385,17 @@ def black_par_taux(param, r):
     return bs_price(s0, strike, years, r, vol, is_call)
 
 
-def grecques(par_spot, par_vol, par_taux, theta, decalage):
-    """Delta, gamma, vega et rho avec la meme machine a deriver."""
+# le vanna croise deux variables, il lui faut une fonction a deux arguments
+def arbre_par_spot_et_vol(param, s, v):
+    return prix_arbre(marche=Market(s, rate, v, dividend, ex_date))
+
+
+def black_par_spot_et_vol(param, s, v):
+    return bs_price(s, strike, years, rate, v, is_call)
+
+
+def grecques(par_spot, par_vol, par_taux, par_spot_vol, theta, decalage):
+    """Toutes les grecques avec la meme machine a deriver."""
     return {
         "Delta": OneDimDerivative(par_spot, None, shift=decalage).first(s0),
         "Gamma": OneDimDerivative(par_spot, None, shift=decalage).second(s0),
@@ -394,6 +403,9 @@ def grecques(par_spot, par_vol, par_taux, theta, decalage):
         "Vega (+1% vol)": OneDimDerivative(par_vol, None, shift=0.01).first(vol) / 100.0,
         "Rho (+1% taux)": OneDimDerivative(par_taux, None, shift=0.01).first(rate) / 100.0,
         "Theta (par jour)": theta,
+        # vanna = d(delta)/d(vol) : meme decalage que le gamma sur le spot
+        "Vanna (+1% vol)": TwoDimDerivative(par_spot_vol, None, shift_x=decalage,
+                                            shift_y=0.01).cross(s0, vol) / 100.0,
     }
 
 
@@ -410,6 +422,7 @@ if greeks_wanted:
         theta_arbre = prix_arbre(quand=demain) - tree_price
 
         for nom, valeur in grecques(arbre_par_spot, arbre_par_vol, arbre_par_taux,
+                                    arbre_par_spot_et_vol,
                                     theta_arbre, decalage).items():
             resultats.setdefault(nom, {})["Arbre"] = valeur
 
@@ -418,6 +431,7 @@ if greeks_wanted:
             # Black-Scholes est une courbe lisse : un petit decalage y est plus
             # precis, contrairement a l'arbre qui a besoin de sortir du casier
             for nom, valeur in grecques(black_par_spot, black_par_vol, black_par_taux,
+                                        black_par_spot_et_vol,
                                         theta_black, 0.5).items():
                 resultats.setdefault(nom, {})["Black-Scholes"] = valeur
 
@@ -462,7 +476,8 @@ gauche, droite = st.columns([3, 2], gap="large")
 with gauche:
     st.subheader("Grecques")
     if greeks_wanted:
-        lignes = ["Delta", "Gamma", "Vega (+1% vol)", "Rho (+1% taux)", "Theta (par jour)"]
+        lignes = ["Delta", "Gamma", "Vega (+1% vol)", "Rho (+1% taux)",
+                  "Theta (par jour)", "Vanna (+1% vol)"]
         tableau = {"": lignes, "Arbre": [resultats[n]["Arbre"] for n in lignes]}
         if comparable:
             tableau["Black-Scholes"] = [resultats[n]["Black-Scholes"] for n in lignes]

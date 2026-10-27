@@ -3,7 +3,7 @@ import math
 import pytest
 
 from lattice.black_scholes import bs_price, norm_cdf
-from lattice.greeks import OneDimDerivative
+from lattice.greeks import OneDimDerivative, TwoDimDerivative
 
 S0, STRIKE, MATURITY, RATE, VOL = 100.0, 100.0, 1.0, 0.05, 0.20
 
@@ -60,3 +60,35 @@ def test_gamma_matches_black_scholes():
 
 def test_shift_defaults_to_one():
     assert OneDimDerivative(square, None).shift == 1.0
+
+
+def bs_call_spot_vol(param, s, v):
+    strike, maturity, rate = param
+    return bs_price(s, strike, maturity, rate, v, is_call=True)
+
+
+def bs_vanna():
+    d1 = bs_d1()
+    d2 = d1 - VOL * math.sqrt(MATURITY)
+    density = math.exp(-d1 * d1 / 2) / math.sqrt(2 * math.pi)
+    return -density * d2 / VOL
+
+
+# le vanna croise le spot et la vol, OneDimDerivative ne peut pas le donner
+def test_vanna_matches_black_scholes():
+    d = TwoDimDerivative(bs_call_spot_vol, (STRIKE, MATURITY, RATE),
+                         shift_x=1.0, shift_y=0.01)
+    assert d.cross(S0, VOL) == pytest.approx(bs_vanna(), abs=1e-3)
+
+
+# sur un produit x*y la derivee croisee vaut 1, quelle que soit la taille du pas
+@pytest.mark.parametrize("shift_x, shift_y", [(0.01, 0.01), (1.0, 0.5), (10.0, 5.0)])
+def test_cross_derivative_on_a_known_function(shift_x, shift_y):
+    d = TwoDimDerivative(lambda param, x, y: x * y, None, shift_x, shift_y)
+    assert d.cross(3.0, 7.0) == pytest.approx(1.0)
+
+
+# sans terme croise, la derivee croisee est nulle
+def test_cross_derivative_is_zero_without_a_crossed_term():
+    d = TwoDimDerivative(lambda param, x, y: x * x + y * y, None, 0.5, 0.5)
+    assert d.cross(2.0, 5.0) == pytest.approx(0.0, abs=1e-9)
