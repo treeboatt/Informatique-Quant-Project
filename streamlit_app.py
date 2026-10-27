@@ -406,6 +406,10 @@ def grecques(par_spot, par_vol, par_taux, par_spot_vol, theta, decalage):
         # vanna = d(delta)/d(vol) : meme decalage que le gamma sur le spot
         "Vanna (+1% vol)": TwoDimDerivative(par_spot_vol, None, shift_x=decalage,
                                             shift_y=0.01).cross(s0, vol) / 100.0,
+        # vomma = d(vega)/d(vol) : derivee seconde sur la seule volatilite,
+        # donc OneDimDerivative suffit. on la ramene a la variation du vega
+        # affiche quand la vol monte de 1 %
+        "Vomma (+1% vol)": OneDimDerivative(par_vol, None, shift=0.01).second(vol) / 10000.0,
     }
 
 
@@ -477,7 +481,7 @@ with gauche:
     st.subheader("Grecques")
     if greeks_wanted:
         lignes = ["Delta", "Gamma", "Vega (+1% vol)", "Rho (+1% taux)",
-                  "Theta (par jour)", "Vanna (+1% vol)"]
+                  "Theta (par jour)", "Vanna (+1% vol)", "Vomma (+1% vol)"]
         tableau = {"": lignes, "Arbre": [resultats[n]["Arbre"] for n in lignes]}
         if comparable:
             tableau["Black-Scholes"] = [resultats[n]["Black-Scholes"] for n in lignes]
@@ -486,7 +490,11 @@ with gauche:
         st.dataframe(tableau, use_container_width=True, hide_index=True)
         st.caption(f"Decalage de {decalage:.2f} EUR pour l'arbre, soit l'ecart entre deux "
                    f"noeuds voisins : en dessous, les trois prix tombent dans le meme "
-                   f"casier et le gamma vaut exactement zero.")
+                   f"casier et le gamma vaut exactement zero. "
+                   f"Les derivees secondes de l'arbre (gamma, vanna, vomma) sont a "
+                   f"prendre avec precaution : elles divisent par le pas au carre, donc "
+                   f"elles amplifient la courbure de l'erreur de discretisation. Le vomma "
+                   f"est le plus touche, il ne converge pas vers sa valeur theorique.")
     else:
         st.caption("Coche \"Calculer les grecques\" dans le bloc Modele.")
 

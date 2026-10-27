@@ -92,3 +92,22 @@ def test_cross_derivative_on_a_known_function(shift_x, shift_y):
 def test_cross_derivative_is_zero_without_a_crossed_term():
     d = TwoDimDerivative(lambda param, x, y: x * x + y * y, None, 0.5, 0.5)
     assert d.cross(2.0, 5.0) == pytest.approx(0.0, abs=1e-9)
+
+
+def bs_vomma():
+    d1 = bs_d1()
+    d2 = d1 - VOL * math.sqrt(MATURITY)
+    density = math.exp(-d1 * d1 / 2) / math.sqrt(2 * math.pi)
+    vega = S0 * density * math.sqrt(MATURITY)
+    return vega * d1 * d2 / VOL
+
+
+# le vomma est une derivee seconde sur la seule volatilite : pas besoin de
+# TwoDimDerivative, OneDimDerivative.second suffit
+def test_vomma_matches_black_scholes():
+    d = OneDimDerivative(black_par_vol_only, None, shift=0.005)
+    assert d.second(VOL) == pytest.approx(bs_vomma(), rel=1e-3)
+
+
+def black_par_vol_only(param, v):
+    return bs_price(S0, STRIKE, MATURITY, RATE, v, is_call=True)
