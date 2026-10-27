@@ -276,6 +276,48 @@ def prix_arbre(nb=None, quand=None, marche=None, opt=None):
 
 
 @st.cache_data(show_spinner="Calcul de la convergence...")
+@st.cache_data(show_spinner="Calcul du profil...")
+def profil_grecque(nom, s0, rate, vol, strike, is_call, is_american, dividend, ex_date,
+                   pricing_date, maturity, nb_steps, kind, pruning, decalage, annees):
+    """
+    La grecque choisie, calculee pour une serie de prix de l'action autour du
+    spot. On refait tout depuis les parametres de base pour que streamlit
+    puisse mettre le resultat en cache.
+    """
+    spots = [s0 * (0.6 + 0.05 * i) for i in range(17)]      # de 60 % a 140 % du spot
+
+    def arbre(s, v, r):
+        marche = Market(s, r, v, dividend, ex_date)
+        opt = OptionTrade(strike, maturity, is_call, is_american)
+        return price(marche, opt, pricing_date, nb_steps, kind=kind, prune=pruning)
+
+    def black(s, v, r):
+        return bs_price(s, strike, annees, r, v, is_call)
+
+    def une_valeur(f, s, pas_spot):
+        par_spot = OneDimDerivative(lambda p, x: f(x, vol, rate), None, shift=pas_spot)
+        par_vol = OneDimDerivative(lambda p, x: f(s, x, rate), None, shift=0.01)
+        par_taux = OneDimDerivative(lambda p, x: f(s, vol, x), None, shift=0.01)
+        if nom == "Delta":
+            return par_spot.first(s)
+        if nom == "Gamma":
+            return par_spot.second(s)
+        if nom == "Vega":
+            return par_vol.first(vol) / 100.0
+        if nom == "Rho":
+            return par_taux.first(rate) / 100.0
+        if nom == "Vomma":
+            return par_vol.second(vol) / 10000.0
+        croise = TwoDimDerivative(lambda p, x, y: f(x, y, rate), None, pas_spot, 0.01)
+        return croise.cross(s, vol) / 100.0                 # Vanna
+
+    courbes = {"arbre": [une_valeur(arbre, s, decalage) for s in spots]}
+    if (not is_american) and dividend == 0.0:
+        courbes["Black-Scholes"] = [une_valeur(black, s, 0.5) for s in spots]
+    return spots, courbes
+
+
+@st.cache_data(show_spinner="Calcul de la convergence...")
 def etude_tunnel(s0, rate, vol, strike, is_call, pricing_date, maturity, jusqu_a):
     """
     Ecart x N pour les deux arbres, a chaque N entier. Il faut tous les N :
@@ -294,7 +336,7 @@ def etude_tunnel(s0, rate, vol, strike, is_call, pricing_date, maturity, jusqu_a
     return n_pas, ecarts
 
 
-def graphe(x, courbes, ylabel, zero=False):
+def graphe(x, courbes, ylabel, zero=False, xlabel="nombre de pas"):
     """Un petit graphe sombre. Matplotlib cale l'axe sur les valeurs, ce que
     st.line_chart ne fait pas : il part de zero et ecrase les deux courbes."""
     fig, ax = plt.subplots(figsize=(6, 3.4))
@@ -310,7 +352,7 @@ def graphe(x, courbes, ylabel, zero=False):
     for nom, (valeurs, couleur) in courbes.items():
         ax.plot(x, valeurs, color=couleur, linewidth=1.3, label=nom)
 
-    ax.set_xlabel("nombre de pas", color=ENCRE, fontsize=9)
+    ax.set_xlabel(xlabel, color=ENCRE, fontsize=9)
     ax.set_ylabel(ylabel, color=ENCRE, fontsize=9)
     ax.grid(color=GRIS, linewidth=0.5)
     legende = ax.legend(fontsize=8, facecolor=FOND, edgecolor=GRIS)
@@ -508,6 +550,32 @@ with droite:
     else:
         st.caption("La formule du cours se compare a Black-Scholes : "
                    "europeenne et sans dividende.")
+
+st.write("")
+
+
+# ============================================================== profil des grecques
+
+st.subheader("Profil des grecques")
+
+choix, graphique = st.columns([1, 4], gap="large")
+with choix:
+    quelle = st.radio("Grecque a tracer",
+                      ["Delta", "Gamma", "Vega", "Rho", "Vanna", "Vomma"])
+
+with graphique:
+    spots, courbes = profil_grecque(quelle, s0, rate, vol, strike, is_call, is_american,
+                                    dividend, ex_date, pricing_date, maturity, nb_steps,
+                                    kind, pruning, decalage, years)
+    donnees = {"arbre": (courbes["arbre"], VERT)}
+    if "Black-Scholes" in courbes:
+        donnees["Black-Scholes"] = (courbes["Black-Scholes"], ROUGE)
+    st.pyplot(graphe(spots, donnees, quelle, zero=True, xlabel="prix de l'action"))
+
+st.caption(f"{quelle} en fonction du prix de l'action, de 60 % a 140 % du spot. "
+           f"Le strike est a {strike:.0f}. On retrouve les formes classiques : le delta "
+           f"en S, le gamma et le vega en cloche centres sur le strike, le vanna qui "
+           f"change de signe en passant la monnaie.")
 
 st.write("")
 
