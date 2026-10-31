@@ -13,3 +13,14 @@ def bs_price(
     if is_call:
         return s0 * norm_cdf(d1) - strike * math.exp(-rate * T) * norm_cdf(d2)
     return strike * math.exp(-rate * T) * norm_cdf(-d2) - s0 * norm_cdf(-d1)
+
+
+# binaire europeenne : elle paie 1 euro si on finit dans la monnaie. c'est donc
+# la probabilite risque neutre d'y finir, actualisee
+def bs_digital(
+    s0: float, strike: float, T: float, rate: float, vol: float, is_call: bool = True
+) -> float:
+    d2 = (math.log(s0 / strike) + (rate - vol**2 / 2) * T) / (vol * math.sqrt(T))
+    if is_call:
+        return math.exp(-rate * T) * norm_cdf(d2)
+    return math.exp(-rate * T) * norm_cdf(-d2)

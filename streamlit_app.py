@@ -7,12 +7,12 @@ import matplotlib.pyplot as plt
 import streamlit as st
 
 from lattice.api import price
-from lattice.black_scholes import bs_price
+from lattice.black_scholes import bs_digital, bs_price
 from lattice.greeks import OneDimDerivative, TwoDimDerivative
 from lattice.market import Market, year_fraction
 from lattice.option import OptionTrade
 from lattice.plot_tree import plot_tree
-from lattice.precision import expected_gap, steps_for_precision
+from lattice.precision import error_constant, expected_gap, steps_for_precision
 from lattice.pricer import Pricer, column
 from lattice.tree import BinomialTree, Tree
 
@@ -230,21 +230,32 @@ with bloc_marche, st.container(border=True):
 
 with bloc_option, st.container(border=True):
     st.subheader("Option")
-    strike = st.number_input("Strike", value=100.0, step=1.0)
-    is_call = st.radio("Type", ["Call", "Put"], horizontal=True) == "Call"
-    is_american = st.radio("Exercice", ["Europeenne", "Americaine"],
-                           horizontal=True) == "Americaine"
+    produit = st.selectbox("Produit", ["Vanille", "Binaire", "One-touch"])
+    is_binary = produit != "Vanille"
+    strike = st.number_input("Barriere" if produit == "One-touch" else "Strike",
+                             value=100.0, step=1.0)
+    is_call = st.radio("Sens", ["Call", "Put"], horizontal=True) == "Call"
+    # un one-touch paie des qu'on touche : c'est une binaire americaine, donc
+    # l'exercice n'est pas un choix de l'utilisateur
+    if produit == "One-touch":
+        is_american = True
+        st.caption("Paie 1 EUR des que la barriere est touchee.")
+    else:
+        is_american = st.radio("Exercice", ["Europeenne", "Americaine"],
+                               horizontal=True) == "Americaine"
     pricing_day = st.date_input("Date de pricing", datetime.date(2026, 9, 1))
     maturity_day = st.date_input("Maturite", datetime.date(2027, 6, 28))
 
 with bloc_modele, st.container(border=True):
     st.subheader("Modele")
     kind = st.selectbox("Type d'arbre", ["trinomial", "binomial"])
-    nb_steps = st.slider("Nombre de pas", 10, 500, 100)
+    nb_steps = st.slider("Nombre de pas", 10, 3000, 100)
     nb_dessine = st.slider("Pas a dessiner", 3, 25, 8)
-    jusqu_a = st.slider("Convergence jusqu'a N", 40, 200, 120)
+    jusqu_a = st.slider("Convergence jusqu'a N", 40, 400, 120)
     pruning = st.checkbox("Pruning", value=True)
     greeks_wanted = st.checkbox("Calculer les grecques", value=True)
+    precision_visee = st.number_input("Precision visee (EUR)", value=0.004,
+                                      min_value=0.0001, step=0.001, format="%.4f")
 
 
 # ============================================================== mise en forme
@@ -259,12 +270,19 @@ if maturity <= pricing_date:
     st.stop()
 
 market = Market(s0, rate, vol, dividend, ex_date)
-option = OptionTrade(strike, maturity, is_call, is_american)
+option = OptionTrade(strike, maturity, is_call, is_american, is_binary)
 years = year_fraction(pricing_date, maturity)
 classe_arbre = BinomialTree if kind == "binomial" else Tree
 
 # Black-Scholes n'est une reference valable que pour une europeenne sans dividende
 comparable = (not is_american) and dividend == 0.0
+
+
+def reference(s, v, r, annees=None):
+    """La formule fermee qui correspond au produit : Black-Scholes pour une
+    vanille, exp(-rT) N(d2) pour une binaire."""
+    formule = bs_digital if is_binary else bs_price
+    return formule(s, strike, years if annees is None else annees, r, v, is_call)
 
 
 # ============================================================== outils
@@ -275,10 +293,10 @@ def prix_arbre(nb=None, quand=None, marche=None, opt=None):
                  nb or nb_steps, kind=kind, prune=pruning)
 
 
-@st.cache_data(show_spinner="Calcul de la convergence...")
 @st.cache_data(show_spinner="Calcul du profil...")
-def profil_grecque(nom, s0, rate, vol, strike, is_call, is_american, dividend, ex_date,
-                   pricing_date, maturity, nb_steps, kind, pruning, decalage, annees):
+def profil_grecque(nom, s0, rate, vol, strike, is_call, is_american, is_binary, dividend,
+                   ex_date, pricing_date, maturity, nb_steps, kind, pruning, decalage,
+                   annees):
     """
     La grecque choisie, calculee pour une serie de prix de l'action autour du
     spot. On refait tout depuis les parametres de base pour que streamlit
@@ -288,11 +306,11 @@ def profil_grecque(nom, s0, rate, vol, strike, is_call, is_american, dividend, e
 
     def arbre(s, v, r):
         marche = Market(s, r, v, dividend, ex_date)
-        opt = OptionTrade(strike, maturity, is_call, is_american)
+        opt = OptionTrade(strike, maturity, is_call, is_american, is_binary)
         return price(marche, opt, pricing_date, nb_steps, kind=kind, prune=pruning)
 
     def black(s, v, r):
-        return bs_price(s, strike, annees, r, v, is_call)
+        return (bs_digital if is_binary else bs_price)(s, strike, annees, r, v, is_call)
 
     def une_valeur(f, s, pas_spot):
         par_spot = OneDimDerivative(lambda p, x: f(x, vol, rate), None, shift=pas_spot)
@@ -318,21 +336,23 @@ def profil_grecque(nom, s0, rate, vol, strike, is_call, is_american, dividend, e
 
 
 @st.cache_data(show_spinner="Calcul de la convergence...")
-def etude_tunnel(s0, rate, vol, strike, is_call, pricing_date, maturity, jusqu_a):
+def etude_tunnel(s0, rate, vol, strike, is_call, is_binary, pricing_date, maturity,
+                 jusqu_a):
     """
     Ecart x N pour les deux arbres, a chaque N entier. Il faut tous les N :
     avec un pas de 2 on raterait l'oscillation du binomial, qui depend de la
     parite. Ca fait quelques centaines de prix, d'ou la mise en cache.
     """
     marche = Market(s0, rate, vol)
-    opt = OptionTrade(strike, maturity, is_call, False)
-    reference = bs_price(s0, strike, year_fraction(pricing_date, maturity), rate, vol, is_call)
+    opt = OptionTrade(strike, maturity, is_call, False, is_binary)
+    formule = bs_digital if is_binary else bs_price
+    exact = formule(s0, strike, year_fraction(pricing_date, maturity), rate, vol, is_call)
 
     n_pas = list(range(10, jusqu_a + 1))
     ecarts = {}
     for sorte in ("trinomial", "binomial"):
         ecarts[sorte] = [(price(marche, opt, pricing_date, n, kind=sorte, prune=True)
-                          - reference) * n for n in n_pas]
+                          - exact) * n for n in n_pas]
     return n_pas, ecarts
 
 
@@ -395,7 +415,7 @@ def mesure_arbre():
 
 tree_price, temps_arbre, memoire_arbre, nb_noeuds = mesure_arbre()
 
-black_price = bs_price(s0, strike, years, rate, vol, is_call) if comparable else None
+black_price = reference(s0, vol, rate) if comparable else None
 
 
 # ============================================================== les grecques
@@ -416,15 +436,15 @@ def arbre_par_taux(param, r):
 
 
 def black_par_spot(param, s):
-    return bs_price(s, strike, years, rate, vol, is_call)
+    return reference(s, vol, rate)
 
 
 def black_par_vol(param, v):
-    return bs_price(s0, strike, years, rate, v, is_call)
+    return reference(s0, v, rate)
 
 
 def black_par_taux(param, r):
-    return bs_price(s0, strike, years, r, vol, is_call)
+    return reference(s0, vol, r)
 
 
 # le vanna croise deux variables, il lui faut une fonction a deux arguments
@@ -433,7 +453,7 @@ def arbre_par_spot_et_vol(param, s, v):
 
 
 def black_par_spot_et_vol(param, s, v):
-    return bs_price(s, strike, years, rate, v, is_call)
+    return reference(s, v, rate)
 
 
 def grecques(par_spot, par_vol, par_taux, par_spot_vol, theta, decalage):
@@ -473,7 +493,7 @@ if greeks_wanted:
             resultats.setdefault(nom, {})["Arbre"] = valeur
 
         if comparable:
-            theta_black = bs_price(s0, strike, years - 1 / 365.0, rate, vol, is_call) - black_price
+            theta_black = reference(s0, vol, rate, years - 1 / 365.0) - black_price
             # Black-Scholes est une courbe lisse : un petit decalage y est plus
             # precis, contrairement a l'arbre qui a besoin de sortir du casier
             for nom, valeur in grecques(black_par_spot, black_par_vol, black_par_taux,
@@ -497,7 +517,8 @@ couts[1].metric("Memoire", f"{memoire_arbre:.1f} Mo")
 couts[2].metric("Noeuds construits", f"{nb_noeuds:,}".replace(",", " "))
 
 st.caption(
-    f"{'Call' if is_call else 'Put'} {'americain' if is_american else 'europeen'} "
+    f"{produit} {'Call' if is_call else 'Put'} "
+    f"{'americain' if is_american else 'europeen'} "
     f"@ {strike:.0f}, {nb_steps} pas, arbre {kind}, pruning "
     f"{'actif' if pruning else 'inactif'} "
     f"(r={rate:.2%}, vol={vol:.2%}, div={dividend:.2f} EUR, T={years:.4f} an). "
@@ -509,8 +530,13 @@ if not comparable:
     st.info("Pas de formule fermee pour une americaine ou avec dividende : l'arbre est seul.")
 
 if is_american:
-    europeenne = OptionTrade(strike, maturity, is_call, False)
-    st.success(f"Prime d'exercice anticipe : {tree_price - prix_arbre(opt=europeenne):+.6f} EUR")
+    europeenne = OptionTrade(strike, maturity, is_call, False, is_binary)
+    prix_eu = prix_arbre(opt=europeenne)
+    if is_binary:
+        st.success(f"La meme binaire europeenne vaut {prix_eu:.6f} EUR. Toucher une fois "
+                   f"rapporte {tree_price - prix_eu:+.6f} EUR de plus que finir au-dessus.")
+    else:
+        st.success(f"Prime d'exercice anticipe : {tree_price - prix_eu:+.6f} EUR")
 
 st.write("")
 
@@ -529,7 +555,7 @@ with gauche:
             tableau["Black-Scholes"] = [resultats[n]["Black-Scholes"] for n in lignes]
             tableau["Ecart"] = [resultats[n]["Arbre"] - resultats[n]["Black-Scholes"]
                                 for n in lignes]
-        st.dataframe(tableau, use_container_width=True, hide_index=True)
+        st.dataframe(tableau, width="stretch", hide_index=True)
         st.caption(f"Decalage de {decalage:.2f} EUR pour l'arbre, soit l'ecart entre deux "
                    f"noeuds voisins : en dessous, les trois prix tombent dans le meme "
                    f"casier et le gamma vaut exactement zero. "
@@ -542,11 +568,19 @@ with gauche:
 
 with droite:
     st.subheader("Precision")
-    if comparable:
-        annonce = expected_gap(market, years, nb_steps, kind)
-        st.metric("Erreur annoncee par le cours", f"{annonce:.6f} EUR")
-        st.caption(f"Pour viser 1 centime il faudrait "
-                   f"{steps_for_precision(market, years, 0.01, kind)} pas.")
+    if is_binary:
+        st.caption("La formule du cours mesure l'angle du payoff. Une binaire n'a pas "
+                   "un angle mais un saut : elle converge bien plus lentement et la "
+                   "formule ne s'applique pas.")
+    elif comparable:
+        st.metric(f"Erreur annoncee a {nb_steps} pas",
+                  f"{expected_gap(market, years, nb_steps, kind):.6f} EUR")
+        combien = steps_for_precision(market, years, precision_visee, kind)
+        st.metric(f"Pas pour viser {precision_visee:.4f} EUR",
+                  f"{combien:,}".replace(",", " "))
+        st.caption(f"Constante du cours C = {error_constant(market, years, kind):.4f} EUR. "
+                   f"L'ecart attendu vaut C / N : viser deux fois plus precis demande "
+                   f"deux fois plus de pas.")
     else:
         st.caption("La formule du cours se compare a Black-Scholes : "
                    "europeenne et sans dividende.")
@@ -565,17 +599,24 @@ with choix:
 
 with graphique:
     spots, courbes = profil_grecque(quelle, s0, rate, vol, strike, is_call, is_american,
-                                    dividend, ex_date, pricing_date, maturity, nb_steps,
-                                    kind, pruning, decalage, years)
+                                    is_binary, dividend, ex_date, pricing_date, maturity,
+                                    nb_steps, kind, pruning, decalage, years)
     donnees = {"arbre": (courbes["arbre"], VERT)}
     if "Black-Scholes" in courbes:
         donnees["Black-Scholes"] = (courbes["Black-Scholes"], ROUGE)
     st.pyplot(graphe(spots, donnees, quelle, zero=True, xlabel="prix de l'action"))
 
+if is_binary:
+    formes = ("Le payoff etant un saut, le delta est une cloche serree autour de la "
+              "barriere et non une courbe en S : toute la sensibilite est concentree "
+              "la ou on bascule entre 0 et 1 euro.")
+else:
+    formes = ("On retrouve les formes classiques : le delta en S, le gamma et le vega "
+              "en cloche centres sur le strike, le vanna qui change de signe en "
+              "passant la monnaie.")
+
 st.caption(f"{quelle} en fonction du prix de l'action, de 60 % a 140 % du spot. "
-           f"Le strike est a {strike:.0f}. On retrouve les formes classiques : le delta "
-           f"en S, le gamma et le vega en cloche centres sur le strike, le vanna qui "
-           f"change de signe en passant la monnaie.")
+           f"Le niveau de reference est a {strike:.0f}. {formes}")
 
 st.write("")
 
@@ -592,7 +633,12 @@ Pricer(petit, option).price_backward()
 
 st.pyplot(plot_tree(petit, f"Arbre {kind} - {nb_dessine} pas", dark=True, option=option))
 
-if is_american:
+if is_american and is_binary:
+    st.caption("En rouge, les noeuds qui ont touche la barriere : on y encaisse 1 EUR "
+               "tout de suite. La frontiere est horizontale, c'est la barriere elle-meme, "
+               "et non une vraie frontiere d'exercice : le choix ne depend pas du temps "
+               "restant mais seulement du niveau atteint.")
+elif is_american:
     st.caption("En rouge, les noeuds ou il vaut mieux exercer par anticipation ; en vert, "
                "ceux ou il vaut mieux garder. La separation entre les deux, c'est la "
                "frontiere d'exercice. La derniere colonne n'est pas coloriee : a maturite "
@@ -612,7 +658,10 @@ st.write("")
 st.subheader("Convergence")
 
 if comparable:
-    pas = list(range(10, nb_steps + 1, max(1, nb_steps // 25)))
+    # on plafonne la courbe : au-dela de 300 pas, 25 pricings mettraient trop
+    # longtemps a s'afficher pour ce que le graphe apporte
+    plafond = min(nb_steps, 300)
+    pas = list(range(10, plafond + 1, max(1, plafond // 25)))
     prix = [prix_arbre(nb=n) for n in pas]
 
     courbe, tunnel = st.columns(2, gap="large")
@@ -620,10 +669,11 @@ if comparable:
         st.pyplot(graphe(pas, {"arbre": (prix, VERT),
                                "Black-Scholes": ([black_price] * len(pas), ROUGE)},
                          "prix de l'option"))
-        st.caption("Le prix de l'arbre se rapproche de Black-Scholes quand on ajoute des pas.")
+        st.caption(f"Le prix de l'arbre se rapproche de Black-Scholes quand on ajoute "
+                   f"des pas. Courbe tracee jusqu'a {plafond} pas.")
 
     with tunnel:
-        n_tunnel, ecarts = etude_tunnel(s0, rate, vol, strike, is_call,
+        n_tunnel, ecarts = etude_tunnel(s0, rate, vol, strike, is_call, is_binary,
                                         pricing_date, maturity, jusqu_a)
         st.pyplot(graphe(n_tunnel, {"trinomial": (ecarts["trinomial"], VERT),
                                     "binomial": (ecarts["binomial"], BLEU)},
