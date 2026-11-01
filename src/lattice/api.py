@@ -13,8 +13,11 @@ def price(market, option, pricing_date, nb_steps, kind="trinomial", method="back
     else:
         raise ValueError(f"unknown kind: {kind}")
 
-    if method != "backward":
+    if method not in ("backward", "recursive"):
         raise ValueError(f"unknown method: {method}")
 
     tree.build_tree()
-    return Pricer(tree, option).price_backward()
+    pricer = Pricer(tree, option)
+    if method == "backward":
+        return pricer.price_backward()
+    return pricer.price_recursive()

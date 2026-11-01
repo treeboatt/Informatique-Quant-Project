@@ -62,4 +62,10 @@ def test_an_unknown_kind_is_refused():
 
 def test_an_unknown_method_is_refused():
     with pytest.raises(ValueError):
-        price(MARKET, CALL, T0, 50, method="recursive")
+        price(MARKET, CALL, T0, 50, method="monte-carlo")
+
+
+def test_the_two_methods_give_the_same_price():
+    """Le detail de la recursion est teste dans test_recursive.py."""
+    assert (price(MARKET, CALL, T0, 50, method="recursive")
+            == price(MARKET, CALL, T0, 50, method="backward"))

@@ -1,5 +1,7 @@
 import datetime
+import math
 import random
+import sys
 import time
 import tracemalloc
 
@@ -251,7 +253,9 @@ with bloc_modele, st.container(border=True):
     kind = st.selectbox("Type d'arbre", ["trinomial", "binomial"])
     nb_steps = st.slider("Nombre de pas", 10, 3000, 100)
     nb_dessine = st.slider("Pas a dessiner", 3, 25, 8)
-    jusqu_a = st.slider("Convergence jusqu'a N", 40, 400, 120)
+    jusqu_a = st.slider("Tunnel jusqu'a N", 40, 1500, 120)
+    plafond_courbe = st.slider("Courbe de convergence jusqu'a N", 50, 3000, 300)
+    methode = st.selectbox("Methode", ["backward", "recursive"])
     pruning = st.checkbox("Pruning", value=True)
     greeks_wanted = st.checkbox("Calculer les grecques", value=True)
     precision_visee = st.number_input("Precision visee (EUR)", value=0.004,
@@ -287,10 +291,16 @@ def reference(s, v, r, annees=None):
 
 # ============================================================== outils
 
+# la recursion empile un niveau par colonne : au-dela de la limite de Python
+# elle leve une erreur, donc on repasse en backward, qui donne le meme prix
+profond = nb_steps + 50 > sys.getrecursionlimit()
+methode_reelle = "backward" if profond else methode
+
+
 def prix_arbre(nb=None, quand=None, marche=None, opt=None):
     """Un seul endroit ou on appelle le pricer, ca evite les oublis."""
     return price(marche or market, opt or option, quand or pricing_date,
-                 nb or nb_steps, kind=kind, prune=pruning)
+                 nb or nb_steps, kind=kind, method=methode_reelle, prune=pruning)
 
 
 @st.cache_data(show_spinner="Calcul du profil...")
@@ -348,7 +358,15 @@ def etude_tunnel(s0, rate, vol, strike, is_call, is_binary, pricing_date, maturi
     formule = bs_digital if is_binary else bs_price
     exact = formule(s0, strike, year_fraction(pricing_date, maturity), rate, vol, is_call)
 
-    n_pas = list(range(10, jusqu_a + 1))
+    # on veut tous les N consecutifs, mais le cout total croit comme la somme
+    # des N, soit environ jusqu_a^2 / 2. on s'impose ce budget (celui de 400 pas
+    # consecutifs) et on en deduit le saut. il est force impair : ainsi il
+    # alterne pair / impair, et l'oscillation du binomial reste visible
+    budget = 400 * 400 // 2
+    saut = max(1, math.ceil(jusqu_a * jusqu_a / (2 * budget)))
+    if saut % 2 == 0:
+        saut += 1
+    n_pas = list(range(10, jusqu_a + 1, saut))
     ecarts = {}
     for sorte in ("trinomial", "binomial"):
         ecarts[sorte] = [(price(marche, opt, pricing_date, n, kind=sorte, prune=True)
@@ -519,12 +537,17 @@ couts[2].metric("Noeuds construits", f"{nb_noeuds:,}".replace(",", " "))
 st.caption(
     f"{produit} {'Call' if is_call else 'Put'} "
     f"{'americain' if is_american else 'europeen'} "
-    f"@ {strike:.0f}, {nb_steps} pas, arbre {kind}, pruning "
+    f"@ {strike:.0f}, {nb_steps} pas, arbre {kind}, methode {methode_reelle}, pruning "
     f"{'actif' if pruning else 'inactif'} "
     f"(r={rate:.2%}, vol={vol:.2%}, div={dividend:.2f} EUR, T={years:.4f} an). "
     f"Le temps et la memoire sont mesures sur deux constructions separees : "
     f"tracemalloc ralentit d'un facteur 3 a 4, le chrono serait fausse."
 )
+
+if profond and methode == "recursive":
+    st.warning(f"La methode recursive empile un niveau par colonne et Python s'arrete a "
+               f"{sys.getrecursionlimit()} : a {nb_steps} pas elle leverait une erreur. "
+               f"On est repasse en backward, qui rend exactement le meme prix.")
 
 if not comparable:
     st.info("Pas de formule fermee pour une americaine ou avec dividende : l'arbre est seul.")
@@ -658,9 +681,9 @@ st.write("")
 st.subheader("Convergence")
 
 if comparable:
-    # on plafonne la courbe : au-dela de 300 pas, 25 pricings mettraient trop
-    # longtemps a s'afficher pour ce que le graphe apporte
-    plafond = min(nb_steps, 300)
+    # la courbe coute 25 valorisations : c'est l'utilisateur qui decide jusqu'ou
+    # aller, puisque c'est lui qui attend
+    plafond = min(nb_steps, plafond_courbe)
     pas = list(range(10, plafond + 1, max(1, plafond // 25)))
     prix = [prix_arbre(nb=n) for n in pas]
 
@@ -678,8 +701,11 @@ if comparable:
         st.pyplot(graphe(n_tunnel, {"trinomial": (ecarts["trinomial"], VERT),
                                     "binomial": (ecarts["binomial"], BLEU)},
                          "(arbre - Black) x N", zero=True))
-        st.caption("Multiplier l'ecart par N le rend lisible : il reste borne, donc "
-                   "l'erreur decroit bien en 1/N. Le trinomial se cale sur une valeur, "
-                   "le binomial oscille entre deux selon la parite de N.")
+        saut_affiche = n_tunnel[1] - n_tunnel[0] if len(n_tunnel) > 1 else 1
+        st.caption(f"Multiplier l'ecart par N le rend lisible : il reste borne, donc "
+                   f"l'erreur decroit bien en 1/N. Le trinomial se cale sur une valeur, "
+                   f"le binomial oscille entre deux selon la parite de N. "
+                   f"{len(n_tunnel)} valeurs de N tracees"
+                   f"{f', une sur {saut_affiche}' if saut_affiche > 1 else ' consecutives'}.")
 else:
     st.caption("La convergence se compare a Black-Scholes : europeenne et sans dividende.")

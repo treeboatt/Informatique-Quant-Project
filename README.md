@@ -50,6 +50,7 @@ Chaque script d'`analysis/` est autonome : il affiche ses tableaux dans la conso
 | `exercice_americain.py` | `americain.png` | Sans dividende, la prime d'exercice anticipé du call est **exactement nulle** tant que le taux est positif, et devient positive dès qu'il passe sous zéro — le put fait l'inverse. À 5 %, il faut un dividende d'au moins **3 €** pour que le call s'exerce par anticipation |
 | `convergence_binaire.py` | `binaire.png` | Une binaire a un saut et non un angle : elle converge en **1/√N**, pas en 1/N (erreur × √N constante à 0,343). Le one-touch vaut environ **deux fois** la binaire européenne de même barrière |
 | `mesure_pruning.py` | `pruning.png` | À N = 1000, le pruning retire **87 % des nœuds** et divise la mémoire et le temps par 8, pour un biais de 2 × 10⁻⁸ € |
+| `backward_vs_recursif.py` | `backward_vs_recursif.png` | Les deux parcours rendent le **même prix au bit près**, mais le récursif est **2,5 à 4,3 × plus lent** et bute sur la limite de récursion de Python : au-delà de ~950 pas il est refusé, là où le backward n'a aucune limite |
 
 ```powershell
 python analysis/convergence.py
