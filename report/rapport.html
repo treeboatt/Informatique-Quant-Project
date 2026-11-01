@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Pricing d'options par arbre recombinant</title>
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;600;700;800&family=Jost:ital,wght@0,400;0,500;0,600;1,400&family=Allura&display=block" rel="stylesheet">
+<style>
+:root { --fond: #E8E7E5; --brun: #5D4037; --brun-clair: #A1887F; --encre: #1A1A1A; --carte: #F4F3F1; }
+@page {
+  size: A4; margin: 17mm 18mm 22mm 18mm; background: var(--fond);
+  @bottom-left { content: "Projet Lattice — pricing par arbre"; font: 9pt Jost, sans-serif;
+                 color: var(--encre); border-bottom: 1px solid var(--encre); vertical-align: middle; }
+  @bottom-center { content: counter(page); font: 9pt Jost, sans-serif; color: #555; }
+  @bottom-right { content: "M. Gruez & G. Turlan"; font: 9pt Jost, sans-serif; text-align: right;
+                  color: var(--encre); border-bottom: 1px solid var(--encre); vertical-align: middle; }
+}
+@page couverture { margin: 0; @bottom-left { content: none; border: none; }
+                   @bottom-center { content: none; } @bottom-right { content: none; border: none; } }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: Jost, 'Segoe UI', sans-serif; font-size: 10pt; line-height: 1.45; color: var(--encre);
+       margin: 0; }
+
+/* ---------- couverture ---------- */
+.couverture { page: couverture; height: 297mm; position: relative; background: var(--fond);
+              break-after: page; text-align: center; overflow: hidden; }
+.couverture .rond { position: absolute; top: 22mm; left: 50%; transform: translateX(-50%);
+                    width: 112mm; height: 112mm; border-radius: 50%; overflow: hidden; clip-path: circle(50%);
+                    background: white; }
+.couverture .rond img { width: 100%; height: 100%; object-fit: cover; }
+.couverture h1 { position: absolute; top: 122mm; width: 100%; margin: 0;
+                 font: 800 68pt/0.95 'League Spartan', sans-serif; letter-spacing: -1pt; }
+.couverture .script { position: absolute; top: 196mm; width: 100%; font: 34pt Allura, cursive; }
+.couverture .pilule { position: absolute; top: 222mm; left: 50%; transform: translateX(-50%);
+                      border: 1.2px solid var(--encre); border-radius: 20mm; padding: 2.5mm 9mm;
+                      font-size: 12pt; white-space: nowrap; }
+.couverture .bas { position: absolute; bottom: 24mm; width: 100%; font-size: 12pt; }
+.couverture .bas span { position: absolute; bottom: 0; padding-bottom: 3mm; width: 82mm;
+                        border-bottom: 1.2px solid var(--encre); }
+.couverture .bas .g { left: 0; text-align: left; padding-left: 20mm; }
+.couverture .bas .d { right: 0; text-align: right; padding-right: 20mm; }
+
+/* ---------- sommaire ---------- */
+.sommaire { break-after: page; padding-top: 4mm; }
+.sommaire h1 { font: 800 50pt/1 'League Spartan', sans-serif; margin: 0; }
+.sommaire .script { font: 28pt Allura, cursive; margin: -2mm 0 14mm 2mm; }
+.sommaire ol { list-style: none; padding: 0 0 0 18mm; margin: 0; }
+.sommaire li { margin: 0 0 9mm 0; font: 700 17pt 'League Spartan', sans-serif; }
+.sommaire li a { color: var(--encre); text-decoration: none; }
+.sommaire li .n { font: 400 26pt Allura, cursive; display: inline-block; width: 15mm; }
+.sommaire .detail { font: 400 10pt Jost, sans-serif; color: #555; margin: 1mm 0 0 15mm; }
+
+/* ---------- corps ---------- */
+h2 { font: 700 21pt/1.1 'League Spartan', sans-serif; margin: 2mm 0 5mm 0; break-after: avoid; }
+h2 .n { font: 400 30pt Allura, cursive; margin-right: 4mm; }
+h2.nouvelle-page { break-before: page; }
+h3 { display: block; width: fit-content; break-inside: avoid; background: var(--brun); color: white;
+     font: 600 10.5pt 'League Spartan', sans-serif; padding: 2.2mm 4mm 1.6mm 4mm;
+     margin: 5mm 0 2.5mm 0; break-after: avoid; }
+h4 { font: 700 9.5pt 'League Spartan', sans-serif; letter-spacing: 1.6pt; text-transform: uppercase;
+     margin: 4mm 0 1.5mm 0; break-after: avoid; }
+p { margin: 1.8mm 0; text-align: justify; }
+ul, ol.liste { margin: 1.5mm 0; padding-left: 6mm; }
+li { margin: 0.8mm 0; }
+code { font-family: inherit; font-size: inherit; font-style: italic; background: none; padding: 0; }
+pre { background: var(--carte); border-left: 3px solid var(--brun); padding: 2.5mm 4mm;
+      font: 8.3pt/1.4 Consolas, 'Courier New', monospace; margin: 2.5mm 0; break-inside: avoid;
+      white-space: pre; overflow: hidden; }
+pre .c { color: #8a7a72; font-style: italic; }
+.cadre { border: 1.2px solid var(--encre); padding: 3mm 5mm; margin: 3mm 0; break-inside: avoid; }
+.cadre p:first-child, .cadre h4:first-child { margin-top: 0; }
+.cadre.brun { border-color: var(--brun); background: rgba(255,255,255,0.35); }
+table { border-collapse: collapse; margin: 3mm auto; font-size: 8.8pt; break-inside: avoid; }
+th { background: var(--brun); color: white; font-weight: 500; padding: 1.6mm 3mm; text-align: left; }
+td { border-bottom: 1px solid #b9b2ad; padding: 1.3mm 3mm; vertical-align: top; }
+tr:nth-child(even) td { background: rgba(255,255,255,0.35); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+figure { margin: 3mm 0; text-align: center; break-inside: avoid; }
+figure img { max-width: 100%; max-height: 66mm; background: white; border: 1px solid #cfcac6; }
+figure.petit img { max-height: 48mm; }
+figure.grand img { max-height: none; width: 100%; }
+figure.schema img { border: none; background: transparent; mix-blend-mode: multiply; }
+figure.duo { display: flex; justify-content: space-between; flex-wrap: wrap; }
+figure.duo img { width: calc(50% - 1.5mm); max-height: none; box-sizing: border-box; }
+figcaption { flex-basis: 100%; font-size: 8.5pt; color: #4a4a4a; font-style: italic; margin-top: 1.5mm; }
+figcaption b { color: var(--brun); font-style: normal; }
+.deux { display: flex; gap: 6mm; align-items: flex-start; }
+.deux > * { flex: 1; }
+.deux { break-inside: avoid; }
+.colonnes { column-count: 2; column-gap: 7mm; }
+.colonnes p { margin-top: 0; break-inside: avoid; }
+.chiffres { display: flex; gap: 3mm; margin: 4mm 0; }
+.chiffres div { flex: 1; border: 1.2px solid var(--encre); border-radius: 12mm; text-align: center;
+                padding: 2mm 1mm; font-size: 8.6pt; }
+.chiffres b { display: block; font: 700 15pt 'League Spartan', sans-serif; color: var(--brun); }
+math { font-size: 10.5pt; }
+math[display="block"] { margin: 2mm 0; }
+.formules { background: rgba(255,255,255,0.4); border-left: 3px solid var(--brun); padding: 1mm 4mm;
+            margin: 2.5mm 0; break-inside: avoid; }
+a { color: var(--brun); }
+</style>
+</head>
+<body>
+
+<!-- ==================== COUVERTURE ==================== -->
+<section class="couverture">
+  <div class="rond"><img src="figures/couverture_arbre.png" alt=""></div>
+  <h1>Rapport<br>de projet</h1>
+  <div class="script">Pricing d'options par arbre recombinant</div>
+  <div class="pilule">M2 272 · Université Paris-Dauphine · 2026-2027</div>
+  <div class="bas"><span class="g">Informatique financière</span><span class="d">Maxime Gruez · Guillaume Turlan</span></div>
+</section>
+
+<!-- ==================== SOMMAIRE ==================== -->
+<section class="sommaire">
+  <h1>Sommaire</h1>
+  <div class="script">Projet Lattice</div>
+  <ol>
+    <li><a href="#introduction"><span class="n">01</span>Introduction</a></li>
+    <li><a href="#architecture"><span class="n">02</span>Architecture du code</a>
+      <div class="detail">pipeline · classes · pointeurs · construction · remontée · héritages</div></li>
+    <li><a href="#validation"><span class="n">03</span>Validation</a></li>
+    <li><a href="#resultats"><span class="n">04</span>Résultats et trouvailles</a></li>
+    <li><a href="#difficultes"><span class="n">05</span>Difficultés et solutions</a></li>
+    <li><a href="#conclusion"><span class="n">06</span>Conclusion</a></li>
+  </ol>
+  <div class="cadre" style="margin-top:10mm; font-size:9pt;">
+    <h4>Code et figures</h4>
+    <p style="text-align:left">Le code est sur github.com/treeboatt/Informatique-Quant-Project. Les études se relancent depuis la racine du dépôt, venv activé, avec les scripts de <code>analysis/</code> : par exemple <code>convergence_binaire.py</code> (figure 7) ou <code>backward_vs_recursif.py</code> (figure 9). Chaque script affiche dans la console les chiffres cités. Les figures du rapport sont rangées dans <code>report/figures/</code>, et le PDF se régénère avec <code>python report/build_pdf.py</code>.</p>
+  </div>
+</section>
+
+<!-- ==================== 01 ==================== -->
+<h2 id="introduction"><span class="n">01</span>Introduction</h2>
+
+<h3>Le sujet</h3>
+<p>Le projet consiste à pricer des calls et des puts, européens et américains, sur un arbre recombinant binomial et trinomial, avec un dividende discret, en Python orienté objet. Le calcul se fait en deux temps : on construit l'arbre de la date de pricing jusqu'à la maturité (<i>forward</i>), puis on remonte la valeur de l'option de la maturité jusqu'à aujourd'hui (<i>backward</i>). Sans dividende, le prix doit converger vers Black-Scholes.</p>
+
+<div class="cadre">
+  <h4>La contrainte de l'énoncé</h4>
+  <p>L'énoncé interdit d'utiliser un dictionnaire, une liste ou un tableau pour accéder aux nœuds. Un nœud connaît ses voisins de colonne et ses trois successeurs ; seuls les nœuds du tronc connaissent le passé. Toute l'architecture découle de cette règle : le parcours de l'arbre, la recherche du successeur du milieu et la remontée du prix se font uniquement en suivant des pointeurs.</p>
+</div>
+
+<h3>Nos choix</h3>
+<p>Nous avons fait du trinomial notre modèle principal, avec l'écart entre nœuds proposé par le cours, α = e<sup>σ√(3Δt)</sup>. Plutôt que d'écrire un second arbre pour le binomial, nous l'avons fait hériter du trinomial : un arbre binomial n'est rien d'autre qu'un trinomial dont la probabilité du milieu est nulle.</p>
+<p>Nous avons aussi voulu un seul point d'entrée, la fonction <code>api.price(...)</code>. Les tests, les scripts d'analyse et l'application passent tous par elle, ce qui garantit qu'ils pricent exactement de la même façon. Le pruning, lui, reste optionnel et désactivé par défaut : il fait gagner beaucoup de mémoire, mais il introduit un petit biais, et nous ne voulions pas qu'il soit activé sans qu'on le demande.</p>
+<p>Enfin, pour le visuel final, nous avons préféré une application Streamlit à une feuille Excel. On y règle les paramètres, puis on voit le prix comparé à Black-Scholes, les grecques, le dessin de l'arbre, les courbes de convergence, ainsi que le temps de calcul, la mémoire et le nombre de nœuds.</p>
+
+<div class="chiffres">
+  <div><b>12</b>classes et modules</div>
+  <div><b>143</b>tests pytest</div>
+  <div><b>1e-12</b>précision des invariants</div>
+  <div><b>1/N</b>vitesse de convergence</div>
+</div>
+
+<!-- ==================== 02 ==================== -->
+<h2 id="architecture" class="nouvelle-page"><span class="n">02</span>Architecture du code</h2>
+
+<h3>Le pipeline</h3>
+<figure class="schema"><img src="figures/fig01_pipeline.png" alt=""></figure>
+<p>Les deux temps sont séparés dans deux classes distinctes. <code>Tree</code> ne connaît de l'option que sa maturité : le strike, le type call/put et le style d'exercice ne servent qu'au <code>Pricer</code>. Un même arbre peut donc pricer plusieurs options sans être reconstruit. À N = 1000, la construction prend environ 3,5 s, puis chaque prix européen environ 300 ms et chaque prix américain environ 630 ms. C'est ce qui rend utilisables les études de convergence et l'application.</p>
+
+<h3>Les classes et leurs relations</h3>
+<figure class="schema grand"><img src="figures/fig00_classes.png" alt="">
+  <figcaption><b>Figure 1</b> — Diagramme des classes. Les flèches pleines sont des appels ou des créations ; la flèche pointillée indique que chaque nœud lit les constantes de son arbre.</figcaption></figure>
+
+<table>
+  <tr><th>Classe / fonction</th><th>Fichier</th><th>Rôle en une ligne</th></tr>
+  <tr><td><code>Market</code>, <code>year_fraction</code></td><td>market.py</td><td>Données de marché figées ; seule conversion dates → années (jours / 365)</td></tr>
+  <tr><td><code>OptionTrade</code></td><td>option.py</td><td>Strike, maturité, call/put, Eu/Am, vanille ou binaire, et <code>payoff(S)</code> ; <code>one_touch(...)</code> fabrique un one-touch</td></tr>
+  <tr><td><code>Node</code> / <code>TrunkNode(Node)</code></td><td>node.py</td><td>Un nœud et ses pointeurs ; le nœud du tronc porte en plus la date et le lien vers le passé</td></tr>
+  <tr><td><code>Tree</code> / <code>BinomialTree(Tree)</code></td><td>tree.py</td><td>Constantes d'un pas et construction colonne par colonne</td></tr>
+  <tr><td><code>Pricer</code>, <code>column(trunk)</code></td><td>pricer.py</td><td>Remontée backward ou récursive, exercice américain ; parcours d'une colonne</td></tr>
+  <tr><td><code>api.price</code></td><td>api.py</td><td>Enchaîne Tree → build_tree → Pricer : trinomial ou binomial, backward ou récursif</td></tr>
+  <tr><td><code>OneDimDerivative</code></td><td>greeks.py</td><td>Dérivées par différences finies, la fonction de pricing passée en paramètre</td></tr>
+  <tr><td><code>bs_price</code>, <code>precision</code>, <code>plot_tree</code></td><td>divers</td><td>Référence fermée, N déduit d'une précision, dessin de l'arbre</td></tr>
+</table>
+
+<p>Deux dépendances structurent tout le reste. D'abord, <code>Tree</code> crée les nœuds et chaque nœud garde un pointeur vers son arbre (<code>node.tree</code>). C'est par lui qu'un nœud lit α pour créer un voisin, les probabilités constantes, le seuil de pruning, ou incrémente le compteur des nœuds élagués. Ensuite, <code>Pricer</code> ne connaît que la racine : il retrouve tout le reste en suivant <code>next_mid</code> vers la maturité, puis <code>prec_mid</code> pour revenir.</p>
+<p>Comme <code>Node</code> n'utilise de son arbre que quelques attributs (<code>alpha</code>, <code>p_up</code>, <code>prune_threshold</code>…), les tests unitaires des nœuds tournent avec un faux arbre minimal, sans construire de <code>Tree</code>. Pour travailler à deux sans se gêner, nous avons écrit notre contrat dans <code>docs/interface.md</code> : il fixe les noms des attributs et trois conventions qui casseraient le code de l'autre si on les oubliait (une valeur d'option qui naît à <code>None</code>, des successeurs qui peuvent valoir <code>None</code>, et un facteur d'actualisation <code>df</code> qui vaut pour un seul pas).</p>
+
+<h3>Un nœud et ses pointeurs</h3>
+<div class="deux">
+  <figure class="schema" style="flex:1.15"><img src="figures/fig00_pointeurs.png" alt="">
+    <figcaption><b>Figure 2</b> — Les pointeurs d'un nœud du tronc.</figcaption></figure>
+  <div>
+    <p><code>Node</code> déclare ses douze attributs dans <code>__slots__</code> : le prix, le lien vers l'arbre, deux voisins de colonne (<code>up</code>, <code>down</code>), trois successeurs, trois probabilités de transition, la probabilité d'atteinte depuis la racine et la valeur de l'option. Sans dictionnaire d'attributs par instance, un arbre de 1 002 001 nœuds tient dans 168 Mo, soit environ 176 octets par nœud en comptant toutes les allocations.</p>
+    <p><code>TrunkNode</code> ajoute trois attributs : <code>prec_mid</code>, le seul pointeur vers la colonne précédente, la date de la colonne, et <code>is_div_in_next_period</code>, calculé une fois à la création.</p>
+  </div>
+</div>
+
+<h3>La construction : qui appelle qui</h3>
+<ol class="liste">
+  <li><code>api.price</code> crée <code>Tree(market, pricing_date, option.maturity, nb_steps)</code>. Le constructeur calcule une fois pour toutes Δt (via <code>year_fraction</code>), α, <code>df</code> = e<sup>−rΔt</sup>, <code>growth</code> = e<sup>rΔt</sup>, le facteur de variance et les probabilités sans dividende, puis crée la racine <code>TrunkNode(S0)</code>, de probabilité d'atteinte 1.</li>
+  <li>En naissant, chaque <code>TrunkNode</code> décide si le dividende tombe dans sa période (t<sub>i</sub> &lt; t<sub>ex</sub> ≤ t<sub>i+1</sub>), avec <code>are_same_dates</code>, qui compare les dates à 1 jour / N / 1000 près.</li>
+  <li><code>build_tree</code> appelle N fois <code>build_next_column(trunk)</code>, qui renvoie le tronc suivant.</li>
+</ol>
+<pre><span class="c"># tree.py — une colonne (simplifié)</span>
+fwd, var = self.forward_and_variance(trunk.price, trunk)
+new_trunk = TrunkNode(fwd, self, trunk, trunk.next_date())     <span class="c"># le tronc suit le forward</span>
+trunk.next_mid = new_trunk
+self.link_successors(trunk, fwd, var, trunk)
+previous, node = trunk, trunk.up                               <span class="c"># on monte la colonne...</span>
+while node is not None:
+    fwd, var = self.forward_and_variance(node.price, trunk)
+    node.next_mid = previous.next_mid.find_closest(fwd)        <span class="c"># part du mid du voisin</span>
+    self.link_successors(node, fwd, var, trunk)
+    previous, node = node, node.up
+<span class="c"># ... puis on la descend par .down (avec un test fwd &gt; 0 avant find_closest)</span></pre>
+<p><code>link_successors</code> fait le lien entre l'arbre et le nœud. Il appelle <code>node.set_constant_probabilities()</code> quand la période ne contient pas de dividende, <code>node.compute_probabilities(fwd, var)</code> quand elle en contient un, et <code>node.prune_invalid()</code> si le forward est négatif. Il crée ensuite les successeurs haut et bas avec <code>next_mid.get_or_create_up()</code> et <code>get_or_create_down()</code>, et propage la probabilité d'atteinte : chaque successeur reçoit la probabilité d'atteinte du nœud multipliée par la probabilité de transition. Si le pruning est activé et que le nœud est sous le seuil, il passe tout droit vers <code>next_mid</code> avec une probabilité de 1.</p>
+
+<h3>Trois mécanismes utilisés</h3>
+<h4>La recombinaison</h4>
+<p>Un nœud ne crée jamais directement un voisin : <code>get_or_create_up()</code> le renvoie s'il existe déjà, et relie les deux nœuds dans les deux sens. <code>find_closest</code> part du successeur du milieu du voisin, déjà placé, et se déplace d'un nœud à la fois tant que la cible est plus proche du nœud suivant. On n'a donc jamais besoin d'indice. Nous avons vérifié que chaque colonne i contient bien 2i + 1 nœuds, ce qui donne 1 002 001 = 1001² nœuds pour N = 1000.</p>
+<h4>Les probabilités constantes sans dividende</h4>
+<p>Sans dividende, le forward d'un nœud vaut S·e<sup>rΔt</sup>. Comme le tronc avance lui aussi de e<sup>rΔt</sup> et que la grille est géométrique, ce forward tombe exactement sur un nœud de la colonne suivante. Les trois probabilités sont alors identiques partout : <code>Tree</code> les calcule une fois et les nœuds les recopient. Sans dividende, aucun nœud ne refait le calcul ; avec un dividende, seuls 99 nœuds sur 10 250 le refont, soit 1 %. C'est plus rapide, mais surtout plus précis : la formule générale divise un petit numérateur par un petit dénominateur quand le forward est proche du nœud du milieu, ce qui amplifie les erreurs d'arrondi.</p>
+<h4>Le dividende</h4>
+<div class="formules">
+<math display="block"><mi>E</mi><mo>=</mo><mi>S</mi><msup><mi>e</mi><mrow><mi>r</mi><mi>Δ</mi><mi>t</mi></mrow></msup><mo>−</mo><mi>D</mi><msup><mi>e</mi><mrow><mi>r</mi><mo>(</mo><mi>t</mi><mo>+</mo><mi>Δ</mi><mi>t</mi><mo>−</mo><msub><mi>t</mi><mi>ex</mi></msub><mo>)</mo></mrow></msup><mspace width="8mm"/><mi>V</mi><mo>=</mo><msup><mrow><mo>(</mo><mi>S</mi><mo>−</mo><mfrac><mrow><mi>t</mi><mo>+</mo><mi>Δ</mi><mi>t</mi><mo>−</mo><msub><mi>t</mi><mi>ex</mi></msub></mrow><mrow><mi>Δ</mi><mi>t</mi></mrow></mfrac><mi>D</mi><mo>)</mo></mrow><mn>2</mn></msup><msup><mi>e</mi><mrow><mn>2</mn><mi>r</mi><mi>Δ</mi><mi>t</mi></mrow></msup><mo>(</mo><msup><mi>e</mi><mrow><msup><mi>σ</mi><mn>2</mn></msup><mi>Δ</mi><mi>t</mi></mrow></msup><mo>−</mo><mn>1</mn><mo>)</mo></math>
+</div>
+<p>Le dividende est additif alors que la grille est multiplicative : sur la période du détachement, le forward sort de la grille, et les probabilités doivent être résolues nœud par nœud. C'est là que <code>find_closest</code> fait vraiment son travail, en recâblant les successeurs (figure de couverture). Tout en bas de l'arbre, le forward peut devenir négatif : le nœud est alors élagué par <code>prune_invalid</code> s'il est pratiquement inatteignable, et le calcul s'arrête avec une erreur claire sinon.</p>
+
+<h3>La remontée backward</h3>
+<div>
+<p><code>Pricer.price_backward()</code> suit <code>next_mid</code> depuis la racine jusqu'à la dernière colonne et y pose les payoffs. Il remonte ensuite colonne par colonne grâce à <code>prec_mid</code>. Le générateur <code>column(trunk)</code> parcourt une colonne en suivant <code>up</code>, puis <code>down</code>, à partir du tronc. Le prix est la valeur finale de la racine.</p>
+<p>On repère l'exercice anticipé sans rien stocker de plus : si la valeur d'un nœud est égale à son payoff, c'est que le pricer a choisi d'exercer. <code>plot_tree</code> s'en sert pour dessiner la frontière d'exercice.</p>
+<p>Le cours propose aussi un parcours récursif, que <code>price_recursive()</code> implémente : la racine demande sa valeur à ses trois successeurs, qui la demandent aux leurs, jusqu'à la maturité. Sans précaution, un arbre recombinant serait reparcouru 3<sup>N</sup> fois ; chaque nœud retient donc sa valeur dans <code>option_value</code>, et un nœud déjà calculé la rend directement. C'est la raison de la convention du contrat d'interface : <code>option_value</code> naît à <code>None</code>, jamais à 0, sinon la mémorisation croirait tout déjà calculé.</p>
+</div>
+<pre><span class="c"># pricer.py — V = e^(-r dt) (p_up V_up + p_mid V_mid + p_down V_down)</span>
+value = node.next_mid.option_value * node.p_mid
+if node.next_up is not None:      <span class="c"># None si élagué</span>
+    value += node.next_up.option_value * node.p_up
+if node.next_down is not None:
+    value += node.next_down.option_value * node.p_down
+value *= self.tree.df             <span class="c"># un pas</span>
+if self.option.is_american:
+    value = max(value, self.option.payoff(node.price))</pre>
+
+<h3>Deux héritages</h3>
+<p><b><code>TrunkNode(Node)</code></b> : un nœud du tronc est un nœud ordinaire, plus un lien vers le passé et une date. Le pricer et la construction le traitent comme n'importe quel nœud quand ils parcourent une colonne.</p>
+<p><b><code>BinomialTree(Tree)</code></b> : la construction de <code>Tree</code> ne lit que <code>self.alpha</code> et <code>self.p_*</code>. Il suffit donc de les redéfinir après le constructeur parent (α + 1/α = 1 + e<sup>σ²Δt</sup>, p<sub>up</sub> = 1/(α+1), p<sub>mid</sub> = 0) pour obtenir un binomial, ce qui tient en 8 lignes. En contrepartie, les nœuds du milieu sont créés mais jamais atteints.</p>
+
+<h3>Autour du moteur</h3>
+<p><code>OneDimDerivative(function, other_parameters, shift)</code> reçoit une fonction de pricing en paramètre et en calcule la dérivée première ou seconde par différence finie centrée. L'application l'utilise pour le delta, le gamma, le véga et le rhô. Elle lui passe à chaque fois une petite fonction qui fait varier un seul paramètre, soit en appelant <code>api.price</code>, soit en appelant <code>bs_price</code> : la même machine à dériver sert ainsi à l'arbre et à la formule fermée, ce qui permet de comparer leurs grecques. <code>precision.py</code> code la formule d'erreur du cours et en déduit le nombre de pas nécessaire pour une précision donnée. L'application Streamlit ne contient aucune logique de pricing : elle n'appelle que <code>api.price</code>, <code>bs_price</code>, <code>OneDimDerivative</code> et <code>plot_tree</code>.</p>
+
+<!-- ==================== 03 ==================== -->
+<h2 id="validation"><span class="n">03</span>Validation</h2>
+
+<p>Comparer à Black-Scholes ne suffit pas pour savoir si le prix est juste. À N = 1000, avec r = 5 % et σ = 20 %, l'arbre donne 10,4515 pour le call (Black-Scholes : 10,4506) et 5,5744 pour le put (5,5735). L'écart est de l'ordre du millième : un bug qui décale le prix de 1e-4 passerait inaperçu. On s'est donc surtout appuyés sur des identités exactes, vraies quel que soit N, que l'arbre doit vérifier aux arrondis près.</p>
+
+<table>
+  <tr><th>Invariant exact — testé à 1e-10 ou 1e-12</th><th class="num">Mesuré</th></tr>
+  <tr><td>Parité C − P = S0 − K·e<sup>−rT</sup>, sans dividende</td><td class="num">9,8e-13</td></tr>
+  <tr><td>Call de strike nul = S0 − D·e<sup>−r·t<sub>ex</sub></sup>, avec dividende</td><td class="num">−9,9e-14 (N=10) · +7,4e-13 (N=200)</td></tr>
+  <tr><td>Parité avec dividende : C − P = S0 − D·e<sup>−r·t<sub>ex</sub></sup> − K·e<sup>−rT</sup></td><td class="num">−9,2e-14 (N=10) · +5,7e-13 (N=200)</td></tr>
+  <tr><td>Σ des probabilités d'atteinte sur chaque colonne = 1</td><td class="num">1,000000000000</td></tr>
+  <tr><td>Moments E et V + E² reproduits par chaque nœud</td><td class="num">à 1e-14</td></tr>
+  <tr><td>Call américain = call européen (sans dividende, r &gt; 0)</td><td class="num">écart 0</td></tr>
+</table>
+
+<div class="cadre brun">
+  <h4>Pourquoi le call de strike nul</h4>
+  <p>Son payoff est S<sub>T</sub>, donc son prix est le forward actualisé. Il ne dépend que de la façon dont l'arbre transporte l'espérance, et pas de la discrétisation du payoff. Si une période est mal repérée, si le terme e<sup>r(t+Δt−t<sub>ex</sub>)</sup> est faux, ou si le dividende est compté deux fois, l'écart passe de 1e-13 à plusieurs centimes. À l'inverse, la convergence vers Black-Scholes est un test à 1e-2 : elle vérifie que le modèle est le bon, mais elle ne détecte pas les petites erreurs.</p>
+</div>
+
+<p><b>Feuille Excel/VBA du professeur.</b> Avec ses paramètres (S = 100, σ = 30 %, r = 3 %, K = 100, du 01/09/2026 au 28/06/2027), notre Black-Scholes donne 11,946724 pour le prix (VBA : 11,946724298), 0,014296 pour le gamma (0,014296173) et 0,352506 pour le véga (0,352508373). Nos conventions de dates et de taux sont donc les mêmes que les siennes. Le véga diffère au sixième chiffre ; nous n'avons pas cherché la cause.</p>
+<p>Au total, 143 tests pytest sont relancés automatiquement par la CI à chaque push.</p>
+
+<!-- ==================== 04 ==================== -->
+<h2 id="resultats"><span class="n">04</span>Résultats et trouvailles</h2>
+<p style="font-size:9pt;color:#555">Sauf mention contraire, les exemples portent sur un call européen avec S0 = K = 100, T = 1 an, σ = 30 %, r = 0 et sans dividende, dont le prix Black-Scholes vaut 11,923538.</p>
+
+<h3>Convergence en 1/N</h3>
+<figure class="duo"><img src="figures/fig04_tunnel.png" alt=""><img src="figures/fig05_loglog.png" alt="">
+  <figcaption><b>Figure 3</b> — À gauche, le tunnel : l'écart × N se stabilise (trinomial −2,96), et le binomial alterne selon la parité de N. À droite, l'erreur en log-log, de pente −1.</figcaption></figure>
+<p>L'écart × N vaut −3,044 à N = 10, puis −2,966 à N = 100 et −2,961 à N = 300. En log-log, la pente mesurée entre N = 10 et N = 1000 vaut −1,006. L'arbre est déterministe, donc il n'y a pas de bruit d'échantillonnage, qui donnerait le 1/√N du Monte-Carlo. Son erreur vient de la discrétisation du payoff : il perd un triangle autour du coude en K, dont la surface est proportionnelle à ΔS², donc à Δt. Cette précision a un coût, qui croît en N² : entre N = 400 et N = 1000, le temps de construction passe de 478 ms à 3 500 ms, ce qui correspond à un exposant de 2,17.</p>
+
+<h3>Le strike et la parité de N</h3>
+<figure><img src="figures/fig06_ecart_strike.png" alt="" style="max-height:57mm">
+  <figcaption><b>Figure 4</b> — Écart entre l'arbre et Black-Scholes en fonction du strike, à N = 10 et N = 100 ; en pointillés, les nœuds de la maturité.</figcaption></figure>
+<div class="colonnes">
+<p>L'écart n'est pas constant : il oscille avec le strike, et ses minima tombent là où le strike coïncide avec un nœud de la maturité. À N = 10, il vaut −0,304 € pour K = 100 (strike sur un nœud) et +0,147 € pour K = 108 (entre deux nœuds). Quand le strike est sur un nœud, l'arbre perd tout le triangle sous le coude du payoff ; quand il tombe entre deux nœuds, l'interpolation surestime au contraire le payoff.</p>
+<p>C'est aussi ce qui explique le comportement du binomial. Avec p<sub>mid</sub> = 0, le nœud au niveau de S0 n'est atteint qu'un pas sur deux : le strike K = 100 tombe donc sur un nœud quand N est pair (−2,756 à N = 100) et entre deux nœuds quand N est impair (+3,162 à N = 101). Pour K = 105, l'écart × N vaut +0,847 puis +2,349 : il dépend encore de la parité, mais ne change plus de signe.</p>
+<p>Nous avons enfin confronté la formule d'erreur du cours à nos prix. Elle donne la bonne loi en 1/N, mais elle surestime l'erreur de 48 %, et cela de façon stable : à N = 100, elle annonce 0,043875 quand nous mesurons 0,029660. Elle ne compte en effet que la perte au nœud le plus proche du strike. Le nombre de pas que l'on en déduit est donc prudent : viser un écart de 1 centime donne en réalité 0,67 centime.</p>
+</div>
+
+<h3>Exercice américain</h3>
+<figure class="duo"><img src="figures/fig07_americain_taux.png" alt=""><img src="figures/fig08_seuil_dividende.png" alt="">
+  <figcaption><b>Figure 5</b> — À gauche, la prime d'exercice anticipé (Am − Eu) en fonction du taux, sans dividende. À droite, la prime du call en fonction du dividende (S0 = 100, K = 101, r = 7 %, ex-date 65 jours avant la maturité).</figcaption></figure>
+<p>Sans dividende, le call américain vaut le call européen dès que r ≥ 0 : exercer tôt oblige à payer K plus tôt, pour aucun gain. Symétriquement, le put américain vaut le put européen dès que r ≤ 0. Avec un taux négatif, les rôles s'inversent : la prime du call vaut 0,4046 € à r = −5 %. Un dividende fait réapparaître l'exercice du call si D dépasse les intérêts perdus sur le strike, K(1 − e<sup>−rτ</sup>) = 1,2512 €, et dans notre exemple la prime devient positive à partir de D = 1,30 €.</p>
+<figure class="duo petit"><img src="figures/fig09a_frontiere_put.png" alt=""><img src="figures/fig09b_frontiere_call_dividende.png" alt="">
+  <figcaption><b>Figure 6</b> — Frontières d'exercice tracées par <code>plot_tree</code>. Le put s'exerce sur une bande de prix bas, à toutes les dates. Le call ne s'exerce qu'à la dernière date avant le détachement (pas 15 ; ex-date au pas 16).</figcaption></figure>
+
+<h3>Dividende avec un taux nul</h3>
+<p>À r = 0 (S0 = K = 100, σ = 20 %, dividende à 6 mois, N = 200), le call et le put à la monnaie valent tous les deux 7,9556 € sans dividende. Avec D = 3 €, le call baisse à 6,5575 € et le put monte à 9,5575 € : put − call = 3,000000000000. À taux nul, la parité s'écrit C − P = S0 − D − K : le dividende retire D au forward, et l'écart vaut exactement D à la monnaie. Hors de la monnaie, l'écart vaut D + K − S0, par exemple −7 pour K = 90.</p>
+
+<h3>Binaires et one-touch</h3>
+<figure><img src="figures/binaire.png" alt="" style="max-height:50mm">
+  <figcaption><b>Figure 7</b> — À gauche, l'erreur de la vanille et de la binaire européenne multipliée par N ou par √N. À droite, le one-touch comparé à la binaire européenne de même barrière (S0 = 100, T = 1 an, σ = 30 %, r = 0, 500 pas).</figcaption></figure>
+<div class="colonnes">
+<p>Une binaire paie 1 € ou rien : dans <code>OptionTrade</code>, il suffit de passer <code>is_binary=True</code> pour que <code>payoff</code> renvoie 1 au-delà du strike et 0 sinon. Le reste du moteur ne change pas. La binaire européenne a une formule fermée, e<sup>−rT</sup>N(d<sub>2</sub>), qui sert de référence. Elle converge pourtant beaucoup moins bien qu'une vanille : son payoff a un saut au strike et non un simple angle, et l'arbre ne voit ce saut qu'aux nœuds, dont l'écart diminue comme √Δt. À la monnaie, l'erreur × √N reste à 0,343 de N = 20 à N = 300, alors que l'erreur × N grimpe de 3,5 à 13,5 : la binaire converge en 1/√N, et non en 1/N.</p>
+<p>Le one-touch paie 1 € dès que le sous-jacent touche la barrière. Nous l'avons construit comme une binaire américaine : à chaque nœud, le pricer prend déjà le maximum entre garder et exercer, et au-delà de la barrière exercer rapporte 1 €, donc il encaisse tout de suite. Toucher une fois étant plus facile que finir au-dessus, le one-touch vaut 2,05 à 2,19 fois la binaire européenne de même barrière. Cette construction suppose un taux positif ou nul : avec r &lt; 0, garder peut valoir plus que 1 € (1,0063 € à r = −2 % pour une barrière déjà franchie).</p>
+</div>
+
+<h3>Pruning</h3>
+<figure><img src="figures/pruning.png" alt="" style="max-height:60mm">
+  <figcaption><b>Figure 8</b> — Nombre de nœuds (à gauche) et temps de construction (à droite) en fonction de N, avec et sans pruning (seuil 1e-7), en échelles log : une loi en N<sup>k</sup> y est une droite de pente k.</figcaption></figure>
+<div class="deux" style="align-items:center">
+<table style="flex:0.8">
+  <tr><th>N = 1000</th><th class="num">sans</th><th class="num">avec</th></tr>
+  <tr><td>nœuds</td><td class="num">1 002 001</td><td class="num">127 904</td></tr>
+  <tr><td>temps</td><td class="num">3 500 ms</td><td class="num">485 ms</td></tr>
+  <tr><td>mémoire</td><td class="num">168,2 Mo</td><td class="num">21,5 Mo</td></tr>
+  <tr><td>biais</td><td class="num">—</td><td class="num">−1,9e-8 €</td></tr>
+</table>
+<p style="flex:1.2">En échelle logarithmique, le nombre de nœuds suit une pente de 1,99 sans pruning, c'est-à-dire la croissance en N² de l'arbre complet, contre 1,48 avec. À N = 1000, le pruning divise par 8 le nombre de nœuds et la mémoire, et par 7 le temps de construction, pour un biais invisible. Le choix du seuil est un compromis : à N = 500, un seuil de 1e-10 supprime déjà 77,7 % des nœuds pour un biais de 5,9e-12, tandis qu'un seuil de 1e-3 en supprime 89,2 % pour un biais de 9,5e-4. Nous l'avons laissé désactivé par défaut, parce qu'il casserait les invariants exacts de la section 03.</p>
+</div>
+
+<h3>Backward ou récursif</h3>
+<figure><img src="figures/backward_vs_recursif.png" alt="" style="max-height:66mm">
+  <figcaption><b>Figure 9</b> — Temps de valorisation des deux parcours sur un arbre déjà construit (à gauche), et leur rapport (à droite).</figcaption></figure>
+<p>Les deux parcours rendent exactement le même prix : de N = 50 à N = 900, ils sont identiques au bit près. Le récursif est en revanche 1,9 à 3,3 fois plus lent, car il paie un appel de fonction par nœud, que le backward évite en parcourant les colonnes avec une simple boucle. Surtout, il empile un niveau d'appel par colonne et bute sur la limite de récursion de Python, fixée à 1000 : un arbre de 1000 pas est refusé, alors que le backward le price sans difficulté. C'est pour cela que le backward reste la méthode par défaut.</p>
+
+<!-- ==================== 05 ==================== -->
+<h2 id="difficultes" class="nouvelle-page"><span class="n">05</span>Difficultés et solutions</h2>
+
+<div class="cadre">
+  <h4>Une boucle infinie à 12 Go de RAM</h4>
+  <p>Avec un gros dividende, le forward d'un nœud tout en bas de l'arbre peut devenir négatif. <code>find_closest</code> cherchait alors le nœud le plus proche d'une cible négative en descendant la colonne. Or un prix divisé par α reste toujours positif : la condition d'arrêt n'arrivait jamais. Le programme ne plantait pas, il créait des nœuds sans fin, jusqu'à 12 Go de mémoire et un processus à tuer à la main.</p>
+  <p><b>Solution</b> : nous avons ajouté un garde-fou <code>assert target &gt; 0</code> en tête de <code>find_closest</code>, un test <code>fwd &gt; 0</code> dans <code>build_next_column</code> avant chaque recherche, et <code>prune_invalid</code>, qui élague un nœud impossible à modéliser s'il est pratiquement inatteignable, et lève une erreur claire sinon. Avec un dividende, l'élagage n'est donc plus seulement une optimisation : il devient nécessaire.</p>
+</div>
+
+<div class="cadre">
+  <h4>Un pruning qui fausse les tests exacts</h4>
+  <p>Le pruning coupe les branches dont la probabilité d'atteinte passe sous un seuil, et les remplace par un passage tout droit vers le nœud du milieu. C'est une approximation, et elle laisse un petit biais sur le prix : −1,9e-8 € à N = 1000 avec un seuil de 1e-7. Pour un prix, c'est invisible. Mais nos invariants exacts du dividende (call de strike nul, parité call-put) sont testés à 1e-10 : avec le pruning activé en permanence, ils ne passaient plus, alors que l'arbre n'avait aucun bug.</p>
+  <p><b>Solution</b> : nous avons rendu le pruning optionnel et désactivé par défaut (<code>prune=False</code>). Les tests exacts tournent sur l'arbre complet, et l'utilisateur active le pruning lui-même quand il travaille à grand N, en sachant qu'il échange un biais de l'ordre du seuil contre 8 fois moins de nœuds et de mémoire, et 7 fois moins de temps de construction.</p>
+</div>
+
+<div class="cadre">
+  <h4>Une interface Excel abandonnée pour Streamlit</h4>
+  <p>Le cours propose de construire le visuel final dans Excel, et c'est ce que nous avons essayé en premier. Mais faire communiquer Excel avec notre code Python s'est révélé plus difficile que prévu : il fallait à la fois envoyer les paramètres d'Excel vers le pricer, et faire revenir les prix, les grecques et l'arbre dans la feuille.</p>
+  <p><b>Solution</b> : nous avons choisi une application Streamlit, écrite en Python comme le reste du projet. Elle appelle directement <code>api.price</code>, sans aucune couche de liaison entre deux logiciels.</p>
+</div>
+
+<!-- ==================== 06 ==================== -->
+<h2 id="conclusion"><span class="n">06</span>Conclusion</h2>
+<p>L'essentiel de notre travail a porté sur l'architecture. Nous avons compris qu'un arbre fait uniquement de pointeurs ne reste simple que si chaque objet a un rôle étroit et en sait le moins possible. Le nœud sait créer un voisin et choisir son successeur. L'arbre calcule les constantes et enchaîne les colonnes. Le pricer ne connaît que la racine et remonte par le tronc. Et tout le reste, des grecques à l'application, passe par <code>api.price</code>. C'est ce découpage qui nous a permis d'obtenir le binomial par simple héritage, d'ajouter le pruning en quelques lignes dans <code>link_successors</code>, d'ajouter les binaires en ne touchant qu'au payoff, et de tester les nœuds sans construire d'arbre réel.</p>
+<p>Côté résultats, nous avons vérifié que l'erreur décroît bien en 1/N, mais qu'elle dépend de la position du strike par rapport aux nœuds, ce qui explique aussi l'oscillation du binomial. Nous avons aussi vu que le call américain n'a de valeur d'exercice anticipé qu'avec un taux négatif, ou avec un dividende supérieur aux intérêts perdus sur le strike. Enfin, les binaires montrent la limite de la méthode : un payoff qui saute ne converge plus qu'en 1/√N.</p>
+
+
+</body>
+</html>
