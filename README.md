@@ -33,11 +33,10 @@ Si l'activation échoue avec « running scripts is disabled on this system », l
 ├── docs/            # interface.md : contrat d'interface Node / Tree / Pricer
 ├── analysis/        # 1 script = 1 étude = 1 figure
 ├── results/         # figures (PNG) et CSV produits par analysis/
-├── excel/           # arbre à 2 pas calculé à la main
-└── report/          # sources et PDF du rapport
+└── report/          # le rapport en PDF
 ```
 
-Répartition : **A** (moteur d'arbre) possède `node.py`, `tree.py`, `plot_tree.py` et `excel/`. **B** (pricing, validation, analyses) possède `market.py`, `option.py`, `black_scholes.py`, `pricer.py`, `greeks.py`, `api.py` et `tests/`. Un fichier = un propriétaire principal.
+Répartition : **A** (moteur d'arbre) possède `node.py`, `tree.py` et `plot_tree.py`. **B** (pricing, validation, analyses) possède `market.py`, `option.py`, `black_scholes.py`, `pricer.py`, `greeks.py`, `api.py` et `tests/`. Un fichier = un propriétaire principal.
 
 ## Résultats
 
