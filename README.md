@@ -39,6 +39,28 @@ Si l'activation échoue avec « running scripts is disabled on this system », l
 
 Répartition : **A** (moteur d'arbre) possède `node.py`, `tree.py`, `plot_tree.py` et `excel/`. **B** (pricing, validation, analyses) possède `market.py`, `option.py`, `black_scholes.py`, `pricer.py`, `greeks.py`, `api.py` et `tests/`. Un fichier = un propriétaire principal.
 
+## Résultats
+
+Chaque script d'`analysis/` est autonome : il affiche ses tableaux dans la console et écrit sa figure dans `results/`.
+
+| Script | Figure | Ce qu'il montre |
+|---|---|---|
+| `convergence.py` | `convergence.png` | L'erreur est en **1/N** : l'écart × N se stabilise à **−2,96** pour le trinomial. Le binomial, lui, **oscille avec la parité de N** (−2,76 pair, +3,16 impair) |
+| `ecart_vs_strike.py` | `ecart_strike.png` | À nombre de pas fixe, l'erreur **oscille avec le strike** : elle est la plus mauvaise quand le strike tombe sur un nœud de la dernière colonne, la meilleure entre deux nœuds |
+| `exercice_americain.py` | `americain.png` | Sans dividende, la prime d'exercice anticipé du call est **exactement nulle** tant que le taux est positif, et devient positive dès qu'il passe sous zéro — le put fait l'inverse. À 5 %, il faut un dividende d'au moins **3 €** pour que le call s'exerce par anticipation |
+| `convergence_binaire.py` | `binaire.png` | Une binaire a un saut et non un angle : elle converge en **1/√N**, pas en 1/N (erreur × √N constante à 0,343). Le one-touch vaut environ **deux fois** la binaire européenne de même barrière |
+| `mesure_pruning.py` | `pruning.png` | À N = 1000, le pruning retire **87 % des nœuds** et divise la mémoire et le temps par 8, pour un biais de 2 × 10⁻⁸ € |
+
+```powershell
+python analysis/convergence.py
+```
+
+L'application Streamlit reprend ces études de façon interactive, et ajoute les grecques, le dessin de l'arbre et le nombre de pas à viser pour une précision donnée :
+
+```powershell
+streamlit run streamlit_app.py
+```
+
 ## Conventions de code
 
 - Noms en anglais dans le code (comme les slides : `next_mid`, `prec_mid`), commentaires et rapport en français.
@@ -46,7 +68,7 @@ Répartition : **A** (moteur d'arbre) possède `node.py`, `tree.py`, `plot_tree.
 - Aucune constante « magique » : 365, seuil de pruning, tolérance sur les dates sont des paramètres nommés.
 - Une docstring d'une ligne par fonction publique ; chaque bug corrigé est accompagné d'un test qui le reproduit.
 - `__slots__` sur `Node` et `TrunkNode`.
-- Les scripts d'analyse ne contiennent aucune logique de pricing : ils appellent `api.price(...)`.
+- Les scripts d'analyse ne contiennent aucune logique de pricing : ils appellent `api.price(...)`. Seule exception, quand une étude price des centaines d'options sur les mêmes paramètres de marché : elle construit alors l'arbre une fois et le réutilise via `Pricer`, car `api.price` le reconstruirait à chaque appel.
 - `ruff format` et `pytest` avant chaque commit.
 
 ## Workflow Git
